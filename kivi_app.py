@@ -21,8 +21,10 @@ from kivy.uix.dropdown import DropDown
 from kivy.uix.spinner import Spinner
 from kivy.uix.filechooser import FileChooserListView 
 from kivy.uix.popup import Popup
+from kivy.uix.checkbox import CheckBox
 
 from array import array
+import copy
 
 import mido
 import cv2
@@ -44,13 +46,21 @@ success = False
 stopped = 2
 image = None
 videofilepath = ''
+channel = 0
+message_type = 'control_change'
+num_frames_skip = 0
+
+
+arithmetic_op = 'Sum'
+color_space = 'RGB'
+
 # if stopped = 0, then it is not stopped, 1: paused, 2: stopped
 
 # decorator function
 def yield_to_sleep(func):
 	@wraps(func) # takes a function used in a decorator and adds the functionality of copying over the function name, arguments list, etc. 
 	def wrapper(*args, **kwargs):
-		gen = func()
+		gen = func()	
 		def next_step(*_): #defining a custom iterator function
 			try:
 				t = next(gen)  # this executes the part of 'func' (in this case, read_image) before the yield statement and returns control to you
@@ -83,38 +93,154 @@ def read_video():
 		# g = random.randint(, 40)
 		# b = random.randint(30, 50)
 		# send_RGB(r)
-	print(stopped)
+	print('Stopped:', stopped)
 	if not success:
 		print('Finished reading video file!')
+		# print(vidcap.get(cv2.CAP_PROP_POS_FRAMES))
+		stopped = 2 
+		vidcap.release()
 	elif stopped == 2:
 		# rate_transfer = 0
 		print('Stopped')
-		# vidcap = None
+		vidcap.release()
+
+def image_operation():
+	global image
+
+	image = perform_arithmetic_opn()
+
+	return image
+
+	# 1. copyMakeBorder
+	# replicate = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_REPLICATE)
+	# reflect = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_REFLECT)
+	# reflect101 = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_REFLECT_101)
+	# wrap = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_WRAP)
+	# constant= cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_CONSTANT,value=BLUE)
+
+	# 2. Select image sections
+	# select percentx, percenty, corner
+
+	# 3. Bitwise operations
+	# Now create a mask of logo and create its inverse mask also
+	# img2gray = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+	# ret, mask = cv2.threshold(img2gray, 10, 255, cv2.THRESH_BINARY)
+	# mask_inv = cv2.bitwise_not(mask)
+
+	# # Now black-out the area of logo in ROI
+	# img1_bg = cv2.bitwise_and(roi,roi,mask = mask_inv)
+
+	# # Take only region of logo from logo image.
+	# img2_fg = cv2.bitwise_and(img2,img2,mask = mask)
+
+	# # Put logo in ROI and modify the main image
+	# dst = cv2.add(img1_bg,img2_fg)
+	# img1[0:rows, 0:cols ] = dst
+
+	# 4. 
+
+
+def convert_color_space():
+	global color_space, image
+
+	# RGB','Gray','HSV', 'YCrCb','XYZ','HLS'
+	image_temp = None
+	if color_space == 'Gray':
+		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+	elif color_space == 'HSV':
+		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+	elif color_space == 'YCrCb':
+		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
+	elif color_space == 'XYZ':
+		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2XYZ)
+	elif color_space == 'HLS':
+		image_temp = cv2.cvtColor(image, cv2.HLS)
+	else:
+		image_temp = image
+	
+	return image_temp
+
+def perform_arithmetic_opn():
+
+	# ('Sum','Product','Division','Difference','Power','Gradient','Exponential','Log','Max','Min','Median','Mode')
+	global arithmetic_op, image
+
+	if arithmetic_op == 'Sum':
+		return np.sum(image)
+	elif arithmetic_op == 'Product':
+		return np.prod(image)
+	elif arithmetic_op == 'Division':
+		return np.prod(image)
+	elif arithmetic_op == 'Difference':
+		return np.prod(image)
+	elif arithmetic_op == 'Power':
+		return np.prod(image)
+	elif arithmetic_op == 'Gradient':
+		return np.prod(image)
+	elif arithmetic_op == 'Exponential':
+		return np.prod(image)
+	elif arithmetic_op == 'Log':
+		return np.prod(image)
+	elif arithmetic_op == 'Max':
+		return np.max(image)
+	elif arithmetic_op == 'Min':
+		return np.min(image)
+	elif arithmetic_op == 'Median':
+		return np.median(image)
+	elif arithmetic_op == 'Mode':
+		return np.max(image)
+
+
+def build_message(value):
+	global channel, message_type
+	pass
+
 
 def send_message_midi():
 	
-	global vidcap, message_count, outputport, success, image, img_change_ev
+	global vidcap, message_count, outputport, success, image, img_change_ev, num_frames_skip, channel, message_type
 	# cv2.imwrite("frame%d.jpg" % count, image)     # save frame as JPEG file
 	# print(dt)
 	try:
+		# if vidcap.isOpened()
+		x = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
+		# print("cv2.CAP_PROP_POS_FRAMES:", x)
+		vidcap.set(cv2.CAP_PROP_POS_FRAMES, x+num_frames_skip)
+		# if x != 1:
+		# 	if x == 0:
+		# 		# TODO
+		# 		# some weird bug where this becomes 0 after reading the file once
+		# 		vidcap.set(cv2.CAP_PROP_POS_FRAMES, 1.0)
+		# 		print(vidcap.get(cv2.CAP_PROP_POS_FRAMES))
+		# 	# print(x+num_frames_skip)
+		# 	else:	
+		# 		vidcap.set(cv2.CAP_PROP_POS_FRAMES, x+num_frames_skip)
+		# 		# print(vidcap.get(cv2.CAP_PROP_POS_FRAMES))
 		success,image = vidcap.read()
 
-		img_change_ev.update_image(image)
+		if not success:
+			return
 
-		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+		
+		image = convert_color_space()
+
+		print(image.shape)
+
+		img_change_ev.update_image(image)
 		# print('Read a new frame with shape: ', gray.shape)
+
+		# note = image_operation()
+		note = perform_arithmetic_opn()
 		message_count+=1
 
-		# for i in range(5):
-		note = np.mean(gray)
-		# print(note)
-		# note = np.mean(note)
-		# print(note)
-		note=note//2
+		print(note)
+		note = int(note)
+		note=note%128
+
 		# print(note)
 		# print(type(note))
 		# msg = mido.Message('note_on', note=int(note))
-		msg = mido.Message('control_change', channel=1-1, control=16, value=int(note))
+		msg = mido.Message('control_change', channel=channel, control=16, value=note)
 		outputport.send(msg)
 		print('Sent message ', msg, " : " , message_count)
 	except cv2.error as e:
@@ -157,7 +283,7 @@ img_change_ev = ImageChangeEventDispatcher()
 class kivi_app(App):
 
 	def OnRunButtonPressed(self, instance):
-		global vidcap, success, stopped, midiports, outputport,message_count,videofilepath
+		global vidcap, success, stopped, midiports, outputport,message_count,videofilepath, rtmidi
 
 		try:
 			midiports = mido.get_output_names()
@@ -172,6 +298,7 @@ class kivi_app(App):
 					outputport = rtmidi.open_output(self.portsdropdown.text)
 				if stopped == 2: 
 					message_count = 0
+					# vidcap.release()
 					vidcap = None #video had been stopped, so start over
 					vidcap = cv2.VideoCapture(videofilepath)
 					stopped = 0
@@ -192,12 +319,24 @@ class kivi_app(App):
 		
 
 	def OnImageChanged(self, _, __):
-		global image
+		global image, color_space
 		# pass
-		buf1 = cv2.flip(image, 0)
-		buf = buf1.tostring()
-		image_texture = Texture.create(size=(image.shape[1], image.shape[0]), colorfmt='bgr')
-		image_texture.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
+		if color_space == 'Gray':
+			buf1 = cv2.flip(image, 0)	
+			buf = buf1.tostring()
+			image_texture = Texture.create(size=(image.shape[1], image.shape[0]),colorfmt='luminance')
+			image_texture.blit_buffer(buf, colorfmt='luminance', bufferfmt='ubyte')
+		# elif color_space == 'HSV':
+		# 	buf1 = cv2.flip(image, 0)	
+		# 	buf = buf1.tostring()
+		# 	image_texture = Texture.create(size=(image.shape[1], image.shape[0]),colorfmt='rgb')
+		# 	image_texture.blit_buffer(buf, colorfmt='rgb', bufferfmt='ubyte')
+		else:
+			print(image.shape)
+			buf1 = cv2.flip(image, 0)
+			buf = buf1.tostring()
+			image_texture = Texture.create(size=(image.shape[1], image.shape[0]),colorfmt='bgr')
+			image_texture.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
 		# display image from the texture
 		self.im.texture = image_texture
 
@@ -245,7 +384,7 @@ class kivi_app(App):
 		# content.add_widget(SettingSpacer())
 	
 		# 2 buttons are created for accept or cancel the current value
-		btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='40dp')
+		btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='20dp')
 		btn = Button(text='Ok')
 
 		btn.bind(on_release=self.select_video_file_path)
@@ -280,6 +419,319 @@ class kivi_app(App):
 			self.pause_button.disabled = False
 			self.stop_button.disabled = False
 
+	def OnPortChanged(self, spinner, text):
+		# pass
+		global outputport, midiports, rtmidi
+		print("port changed")
+
+		midiports = mido.get_output_names()
+		if midiports == []:
+			return
+		elif self.portsdropdown.text not in midiports:
+			self.transfer_rate_label.text = 'An unexpected error occured. Please check the midi ports.'
+			print(str(e))
+		else:
+			if outputport is None:
+				outputport = rtmidi.open_output(self.portsdropdown.text)
+			elif outputport.name != self.portsdropdown.text:
+				outputport.close()
+				outputport = rtmidi.open_output(self.portsdropdown.text)
+
+	def OnChannelChanged(self, spinner, text):
+		# pass
+		global channel
+		print("channel changed")
+
+		channel = int(self.channel_selector.text)
+
+	def OnMessageTypeChanged(self, spinner, text):
+		global message_type
+
+		print("message type changed")
+
+		channel = self.message_type_selector.text
+
+	def OnFrameSkipChanged(self, instance, text):
+		# pass
+		global num_frames_skip, vidcap
+		print("number of frames to skip changed")
+
+		if self.frames_skip_btn.text == '':
+			num_frames_skip = 0
+		else:
+			num_frames_skip = int(self.frames_skip_btn.text)
+		print(num_frames_skip)
+
+		# if vidcap.isOpened():
+		# 	vidcap.set(cv2.CAP_PROP_POS_FRAMES, start_frame_number)
+
+	def OnImgOpnsButtonPressed(self, instance):
+		# pass
+		# content = BoxLayout(orientation='vertical', spacing=5)
+		# popup_width = min(0.95 * Window.width, dp(500))
+		if self.imgopnspopup == None:
+			content = FloatLayout(size=(400, 400), 
+			# orientation='vertical', 
+			# spacing=5
+			)
+			self.imgopnspopup = Popup(
+				title='Select image operations', content=content, size_hint=(0.9, 0.9),
+				width=(0.9,0.9))
+
+			self.imgopnspopup.arithmetic_opns = Spinner(# default value shown
+					text = 'Sum',
+					# available values
+					values=('Sum','Product','Division','Difference','Power','Gradient','Exponential','Log','Max','Min','Median','Mode'),
+					pos_hint={'x': .53, 'y': .8},
+					size_hint=(.3, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.imgopnspopup.arithmetic_opns_label = Label(text="Arithmetic operation",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .81},
+							  size_hint=(.2, .05))
+
+			self.imgopnspopup.color_opns = Spinner(# default value shown
+					text = 'RGB',
+					# available values
+					values=('RGB','Gray','HSV', 'YCrCb','XYZ','HLS'),
+					pos_hint={'x': .53, 'y': .7},
+					size_hint=(.3, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.imgopnspopup.color_opns_label = Label(text="Color space",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .71},
+							  size_hint=(.2, .05))
+
+			self.imgopnspopup.crop_opns = Spinner(# default value shown
+					text = 'Top left',
+					# available values
+					values=('Top left','Top right','Bottom left', 'Bottom right','Center'),
+					pos_hint={'x': .53, 'y': .6},
+					size_hint=(.15, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.imgopnspopup.crop_x = TextInput(text = '100',
+						pos_hint={'x': .69, 'y': .6},
+						size_hint=(.1, .075),
+						input_filter='int',
+						)
+
+			self.imgopnspopup.crop_y = TextInput(text = '100',
+						pos_hint={'x': .8, 'y': .6},
+						size_hint=(.1, .075),
+						input_filter='int',
+						)
+
+			self.imgopnspopup.crop_opns_label = Label(text="Crop options",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .61},
+							  size_hint=(.2, .05))
+
+			self.imgopnspopup.border_opns = Spinner(# default value shown
+					text = "Select border parameters",
+					# available values
+					values=(),
+					pos_hint={'x': .53, 'y': .5},
+					size_hint=(.3, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.imgopnspopup.border_opns_label = Label(text="Add border",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .51},
+							  size_hint=(.2, .05))
+		
+			# 2 buttons are created for accept or cancel the current value
+			# btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='20dp')
+			self.imgopnspopup.save_btn = Button(text='Save', pos_hint={'x': .2, 'y': .075}, size_hint = (.25, .075))
+			self.imgopnspopup.save_btn.bind(on_release=self.OnImgOpnsSaved)
+			content.add_widget(self.imgopnspopup.save_btn)
+			# btn.bind(on_release=self.select_video_file_path)
+			# btnlayout.add_widget(btn)
+			self.imgopnspopup.cancel_btn = Button(text='Cancel', pos_hint = {'x': .55, 'y': .075}, size_hint = (.25, .075))
+			self.imgopnspopup.cancel_btn.bind(on_release=self.imgopnspopup.dismiss)
+			content.add_widget(self.imgopnspopup.cancel_btn)
+			# btnlayout.add_widget(btn)
+			# content.add_widget(btnlayout)
+			content.add_widget(self.imgopnspopup.arithmetic_opns_label)
+			content.add_widget(self.imgopnspopup.arithmetic_opns)
+			content.add_widget(self.imgopnspopup.color_opns_label)
+			content.add_widget(self.imgopnspopup.color_opns)
+			content.add_widget(self.imgopnspopup.crop_opns_label)
+			content.add_widget(self.imgopnspopup.crop_opns)
+			content.add_widget(self.imgopnspopup.crop_x)
+			content.add_widget(self.imgopnspopup.crop_y)
+			content.add_widget(self.imgopnspopup.border_opns_label)
+			content.add_widget(self.imgopnspopup.border_opns)
+	
+		else:
+			print('hello')
+			self.imgopnspopup.old_state_img_options = self.imgopnspopup
+
+			self.imgopnspopup.old_state_img_options.arithmetic_opns_text = copy.deepcopy(self.imgopnspopup.arithmetic_opns.text)
+			self.imgopnspopup.old_state_img_options.color_opns_text = copy.deepcopy(self.imgopnspopup.color_opns.text)
+
+			# print(self.imgopnspopup.old_state_img_options.arithmetic_opns_text)
+			# print(self.imgopnspopup.old_state_img_options.color_opns_text)
+			self.imgopnspopup.cancel_btn.bind(on_release=self.OnImgOpnsCanceled)
+		self.imgopnspopup.open()
+		# all done, open the popup !
+		
+
+	def OnImgOpnsSaved(self, instance):
+		global arithmetic_op, color_space
+
+		arithmetic_op = self.imgopnspopup.arithmetic_opns.text
+		# print(arithmetic_op)
+
+		color_space = self.imgopnspopup.color_opns.text
+		# print(color_space)
+
+		self.imgopnspopup.dismiss()
+
+
+	def OnImgOpnsCanceled(self, instance):
+
+		# assign each option to older state
+		# print(self.imgopnspopup.old_state_img_options.arithmetic_opns_text)
+		# print(self.imgopnspopup.old_state_img_options.color_opns_text)
+		self.imgopnspopup.arithmetic_opns.text = self.imgopnspopup.old_state_img_options.arithmetic_opns_text
+		# print(self.imgopnspopup.arithmetic_opns.text)
+		self.imgopnspopup.color_opns.text = self.imgopnspopup.old_state_img_options.color_opns_text
+		# print(self.imgopnspopup.color_opns.text)
+
+		self.imgopnspopup.dismiss()
+
+
+	def OnNoteMapButtonPressed(self, instance):
+		# pass
+		if self.notemappopup == None:
+			content = FloatLayout(size=(400, 400), 
+			# orientation='vertical', 
+			# spacing=5
+			)
+			self.notemappopup = Popup(
+				title='Select value to note mapping', content=content, size_hint=(0.9, 0.9),
+				width=(0.9,0.9))
+
+			self.notemappopup.arithmetic_opns = Spinner(# default value shown
+					text = 'Sum',
+					# available values
+					values=('Sum','Product','Division','Difference','Power','Gradient','Exponential','Log','Max','Min','Median','Mode'),
+					pos_hint={'x': .53, 'y': .8},
+					size_hint=(.3, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.notemappopup.arithmetic_opns_label = Label(text="Arithmetic operation",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .81},
+							  size_hint=(.2, .05))
+
+			self.notemappopup.color_opns = Spinner(# default value shown
+					text = 'RGB',
+					# available values
+					values=('RGB','Gray','HSV', 'YCrCb','XYZ','HLS'),
+					pos_hint={'x': .53, 'y': .7},
+					size_hint=(.3, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.notemappopup.color_opns_label = Label(text="Color space",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .71},
+							  size_hint=(.2, .05))
+
+			self.notemappopup.crop_opns = Spinner(# default value shown
+					text = 'Top left',
+					# available values
+					values=('Top left','Top right','Bottom left', 'Bottom right','Center'),
+					pos_hint={'x': .53, 'y': .6},
+					size_hint=(.15, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.notemappopup.crop_x = TextInput(text = '100',
+						pos_hint={'x': .69, 'y': .6},
+						size_hint=(.1, .075),
+						input_filter='int',
+						)
+
+			self.notemappopup.crop_y = TextInput(text = '100',
+						pos_hint={'x': .8, 'y': .6},
+						size_hint=(.1, .075),
+						input_filter='int',
+						)
+
+			self.notemappopup.crop_opns_label = Label(text="Crop options",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .61},
+							  size_hint=(.2, .05))
+
+			self.notemappopup.border_opns = Spinner(# default value shown
+					text = "Select border parameters",
+					# available values
+					values=(),
+					pos_hint={'x': .53, 'y': .5},
+					size_hint=(.3, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.notemappopup.border_opns_label = Label(text="Add border",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .51},
+							  size_hint=(.2, .05))
+		
+			# 2 buttons are created for accept or cancel the current value
+			# btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='20dp')
+			self.notemappopup.save_btn = Button(text='Save', pos_hint={'x': .2, 'y': .075}, size_hint = (.25, .075))
+			self.notemappopup.save_btn.bind(on_release=self.notemappopup.dismiss)
+			content.add_widget(self.notemappopup.save_btn)
+			# btn.bind(on_release=self.select_video_file_path)
+			# btnlayout.add_widget(btn)
+			self.notemappopup.cancel_btn = Button(text='Cancel', pos_hint = {'x': .55, 'y': .075}, size_hint = (.25, .075))
+			self.notemappopup.cancel_btn.bind(on_release=self.notemappopup.dismiss)
+			content.add_widget(self.notemappopup.cancel_btn)
+			# btnlayout.add_widget(btn)
+			# content.add_widget(btnlayout)
+			content.add_widget(self.notemappopup.arithmetic_opns_label)
+			content.add_widget(self.notemappopup.arithmetic_opns)
+			content.add_widget(self.notemappopup.color_opns_label)
+			content.add_widget(self.notemappopup.color_opns)
+			content.add_widget(self.notemappopup.crop_opns_label)
+			content.add_widget(self.notemappopup.crop_opns)
+			content.add_widget(self.notemappopup.crop_x)
+			content.add_widget(self.notemappopup.crop_y)
+			content.add_widget(self.notemappopup.border_opns_label)
+			content.add_widget(self.notemappopup.border_opns)
+	
+		else:
+			print('hello')
+			# self.notemappopup.old_state_img_options = self.notemappopup
+			
+			# self.notemappopup.old_state_img_options.arithmetic_opns_text = copy.deepcopy(self.notemappopup.arithmetic_opns.text)
+			# self.notemappopup.old_state_img_options.color_opns_text = copy.deepcopy(self.notemappopup.color_opns.text)
+
+			# print(self.notemappopup.old_state_img_options.arithmetic_opns_text)
+			# print(self.notemappopup.old_state_img_options.color_opns_text)
+			# self.notemappopup.cancel_btn.bind(on_release=self.OnImgOpnsCanceled)
+		
+		self.notemappopup.open()
+	
+		# all done, open the popup !
+		
+
+	def on_checkbox_active(checkbox, value):
+		if value:
+			print('The checkbox', checkbox, 'is active')
+		else:
+			print('The checkbox', checkbox, 'is inactive')
+
 	def build(self):
 
 		FLOAT_LAYOUT = FloatLayout(size=(400, 400))
@@ -302,6 +754,11 @@ class kivi_app(App):
 		self.im.keep_ratio = True
 		self.im.pos_hint = {'center_x': 1.0, 'center_y': 1.0}
 		self.im.size_hint = (1.0,1.0)
+
+		self.imgopnspopup = None
+		self.file_selector = None
+		self.notemappopup = None
+
 		self.image_box = FloatLayout(pos_hint={'center_x': .1, 'center_y': .425},
 							 size_hint=(.35, .35)
 							 # size_hint=(None, None)
@@ -353,6 +810,119 @@ class kivi_app(App):
 						  pos_hint={'x': .17, 'y': .33},
 						  size_hint=(.2, .05))
 
+
+		self.portsdropdown = Spinner(# default value shown
+				# text=midiports[1],
+				text = "Select Port",
+				# available values
+				values=(),
+				# just for positioning in our example
+				# size_hint=(None, None),
+				# size=(100, 44),
+				# size_hint=(None, None),
+				pos_hint={'x': .65, 'y': .8},
+				size_hint=(.25, .075),
+				# on_text = self.OnPortChanged,
+				)
+
+		self.ports_label = Label(text="Port Number",
+						  font_size=12,
+						  pos_hint={'x': .47, 'y': .81},
+						  size_hint=(.2, .05))
+
+		self.channel_selector = Spinner(# default value shown
+				text='0',
+				# available values
+				values = tuple([str(i) for i in range(16)]),
+				# just for positioning in our example
+				# size_hint=(None, None),
+				# size=(100, 44),
+				# size_hint=(None, None),
+				pos_hint={'x': .65, 'y': .68},
+				size_hint=(.25, .075))
+
+		self.channel_label = Label(text="Channel Number",
+						  font_size=12,
+						  pos_hint={'x': .47, 'y': .69},
+						  size_hint=(.2, .05))
+
+		message_types = (
+			'note_off',	#channel note velocity
+			'note_on',	#channel note velocity
+			'polytouch',	#channel note value
+			'control_change',	#channel control value
+			'program_change',	#channel program
+			'aftertouch',	#channel value
+			'pitchwheel',	#channel pitch
+		)
+
+		self.message_type_selector = Spinner(# default value shown
+				text=message_types[0],
+				# available values
+				values = message_types,
+				# just for positioning in our example
+				# size_hint=(None, None),
+				# size=(100, 44),
+				# size_hint=(None, None),
+				pos_hint={'x': .65, 'y': .56},
+				size_hint=(.25, .075))
+
+		self.message_label = Label(text="Message Type",
+						  font_size=12,
+						  pos_hint={'x': .47, 'y': .57},
+						  size_hint=(.2, .05))
+
+		self.img_opns_btn = Button(text = 'Select',
+					pos_hint={'x': .67, 'y': .43},
+					size_hint=(.2, .075),)
+
+		self.img_opns_label = Label(text="Select image operations",
+						  font_size=12,
+						  pos_hint={'x': .47, 'y': .44},
+						  size_hint=(.2, .05))
+
+		self.frames_skip_btn = TextInput(text = '0',
+					pos_hint={'x': .67, 'y': .33},
+					size_hint=(.075, .065),
+					input_filter='int',
+					)
+
+		self.frames_skip_label = Label(text="Number of frames to skip",
+						  font_size=12,
+						  pos_hint={'x': .47, 'y': .34},
+						  size_hint=(.2, .05))
+
+		self.note_mapping_btn = Button(text = 'Select',
+					pos_hint={'x': .67, 'y': .22},
+					size_hint=(.2, .075),)
+
+		self.note_mapping_label = Label(text="Select value mapping",
+						  font_size=12,
+						  pos_hint={'x': .47, 'y': .23},
+						  size_hint=(.2, .05))
+
+		self.midi_toggle = CheckBox(
+					# text = 'Select',
+					pos_hint={'x': .63, 'y': .11},
+					size_hint=(.2, .075),
+					group = 'group',
+					active = True)
+
+		self.osc_toggle = CheckBox(
+					# text = 'Select',
+					pos_hint={'x': .70, 'y': .11},
+					size_hint=(.2, .075),
+					group = 'group',
+					active = False)
+
+		# CheckBox.group = 
+
+		self.midi_label = Label(text="Send MIDI/OSC messages",
+						  font_size=12,
+						  pos_hint={'x': .47, 'y': .12},
+						  size_hint=(.2, .05))
+
+
 		FLOAT_LAYOUT.add_widget(self.transfer_rate_label)
 		# FLOAT_LAYOUT.add_widget(text_box)
 		FLOAT_LAYOUT.add_widget(self.image_box)
@@ -363,6 +933,21 @@ class kivi_app(App):
 		FLOAT_LAYOUT.add_widget(self.slider1)
 		FLOAT_LAYOUT.add_widget(self.file_selector)
 		FLOAT_LAYOUT.add_widget(self.file_path_text)
+		FLOAT_LAYOUT.add_widget(self.portsdropdown)
+		FLOAT_LAYOUT.add_widget(self.ports_label)
+		FLOAT_LAYOUT.add_widget(self.message_type_selector)
+		FLOAT_LAYOUT.add_widget(self.message_label)
+		FLOAT_LAYOUT.add_widget(self.channel_selector)
+		FLOAT_LAYOUT.add_widget(self.channel_label)
+		FLOAT_LAYOUT.add_widget(self.img_opns_btn)
+		FLOAT_LAYOUT.add_widget(self.img_opns_label)
+		FLOAT_LAYOUT.add_widget(self.frames_skip_btn)
+		FLOAT_LAYOUT.add_widget(self.frames_skip_label)
+		FLOAT_LAYOUT.add_widget(self.note_mapping_btn)
+		FLOAT_LAYOUT.add_widget(self.note_mapping_label)
+		FLOAT_LAYOUT.add_widget(self.midi_label)
+		FLOAT_LAYOUT.add_widget(self.midi_toggle)
+		FLOAT_LAYOUT.add_widget(self.osc_toggle)
 
 		self.run_button.disabled = self.pause_button.disabled = self.stop_button.disabled = True
 
@@ -394,17 +979,17 @@ class kivi_app(App):
 				img_change_ev.bind(on_img_change = self.OnImageChanged)
 				self.file_selector.bind(on_press = self.create_popup)
 
-				self.portsdropdown = Spinner(# default value shown
-				text=midiports[1],
-				# available values
-				values=tuple(midiports),
-				# just for positioning in our example
-				# size_hint=(None, None),
-				size=(100, 44),
-				pos_hint={'x': .55, 'y': .6},
-				size_hint=(.3, .1))
+				self.portsdropdown.text = midiports[1]
+				self.portsdropdown.values = tuple(midiports)
+				self.portsdropdown.bind(text = self.OnPortChanged)
+				self.message_type_selector.bind(text = self.OnMessageTypeChanged)
 
-				FLOAT_LAYOUT.add_widget(self.portsdropdown)
+				self.channel_selector.bind(text = self.OnChannelChanged)
+
+				self.frames_skip_btn.bind(text = self.OnFrameSkipChanged)
+
+				self.img_opns_btn.bind(on_press=self.OnImgOpnsButtonPressed)
+				self.note_mapping_btn.bind(on_press=self.OnNoteMapButtonPressed)
 
 
 		except Exception as e:
