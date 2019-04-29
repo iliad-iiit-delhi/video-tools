@@ -54,6 +54,9 @@ control = 0
 
 arithmetic_op = 'Sum'
 color_space = 'RGB'
+crop_type = 'Top left'
+crop_x = 100
+crop_y = 100
 
 modulo_value = 128
 range_min = 0
@@ -174,29 +177,47 @@ def perform_arithmetic_opn():
 		return np.sum(image)
 	elif arithmetic_op == 'Product':
 		return np.prod(image)
-	elif arithmetic_op == 'Division':
-		return np.prod(image)
-	elif arithmetic_op == 'Difference':
-		return np.prod(image)
-	elif arithmetic_op == 'Power':
-		return np.prod(image)
-	elif arithmetic_op == 'Gradient':
-		return np.prod(image)
-	elif arithmetic_op == 'Exponential':
-		return np.prod(image)
-	elif arithmetic_op == 'Log':
-		return np.prod(image)
+	# elif arithmetic_op == 'Division':
+	# 	return np.prod(image)
+	# elif arithmetic_op == 'Difference':
+	# 	return np.prod(image)
+	# elif arithmetic_op == 'Power':
+	# 	return np.prod(image)
+	# elif arithmetic_op == 'Gradient':
+	# 	return np.prod(image)
+	# elif arithmetic_op == 'Exponential':
+	# 	return np.prod(image)
+	# elif arithmetic_op == 'Log':
+	# 	return np.prod(image)
 	elif arithmetic_op == 'Max':
 		return np.max(image)
 	elif arithmetic_op == 'Min':
 		return np.min(image)
 	elif arithmetic_op == 'Median':
 		return np.median(image)
-	elif arithmetic_op == 'Mode':
-		return np.max(image)
+	# elif arithmetic_op == 'Mode':
+	# 	return np.max(image)
 
+def crop_image():
+	global image, crop_type, crop_x, crop_y
+	print('Cropping:', image.shape)
+	# let it be bgr image (default) as it would be a big pain to crop color space changed image
+	# 'Top left','Top right','Bottom left', 'Bottom right','Center'),
+	if crop_x == 100 and crop_y == 100:
+		return image
+	if crop_type == 'Top left':
+		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
+	if crop_type == 'Top right':
+		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
+	if crop_type == 'Bottom left':
+		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
+	if crop_type == 'Bottom right':
+		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
+	if crop_type == 'Center':
+		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
+	return image_temp
 
-def build_note():
+def build_note(): # does not value mapping operations
 	pass
 
 
@@ -223,12 +244,12 @@ def build_message(value):
 		pass
 	elif message_type == 'program_change':
 		msg = mido.Message('program_change', channel=channel, program=value) # time missing
-	elif message_type == 'polytouch':
-		pass
-	elif message_type == 'aftertouch':
-		pass
-	elif message_type == 'pitchwheel':
-		pass
+	# elif message_type == 'polytouch':
+	# 	pass
+	# elif message_type == 'aftertouch':
+	# 	pass
+	# elif message_type == 'pitchwheel':
+	# 	pass
 	return msg
 
 
@@ -247,6 +268,8 @@ def send_message_midi():
 		if not success:
 			return
 		
+		image = crop_image()
+
 		image = convert_color_space()
 
 		print(image.shape)
@@ -473,10 +496,15 @@ class kivi_app(App):
 	def OnMessageTypeChanged(self, spinner, text):
 		global message_type
 
-		if self.message_type_selector.text != 'control_change':
+		if self.message_type_selector.text != 'control_change' and self.message_type_selector.text != 'program_change':
 			self.control_selector.disabled = True
-		else:
+			self.channel_selector.disabled = True
+		elif self.message_type_selector.text == 'control_change':
 			self.control_selector.disabled = False
+			self.channel_selector.disabled = False
+		elif self.message_type_selector.text == 'program_change':
+			self.control_selector.disabled = True
+			self.channel_selector.disabled = False
 
 		print("message type changed")
 
@@ -519,7 +547,19 @@ class kivi_app(App):
 			self.imgopnspopup.arithmetic_opns = Spinner(# default value shown
 					text = 'Sum',
 					# available values
-					values=('Sum','Product','Division','Difference','Power','Gradient','Exponential','Log','Max','Min','Median','Mode'),
+					values=('Sum',
+						'Product',
+						# 'Division',
+						# 'Difference',
+						# 'Power',
+						# 'Gradient',
+						# 'Exponential',
+						# 'Log',
+						'Max',
+						'Min',
+						'Median',
+						# 'Mode',
+						),
 					pos_hint={'x': .53, 'y': .8},
 					size_hint=(.3, .075),
 					# on_text = self.OnPortChanged,
@@ -553,19 +593,19 @@ class kivi_app(App):
 					# on_text = self.OnPortChanged,
 					)
 
-			self.imgopnspopup.crop_x = TextInput(text = '100',
+			self.imgopnspopup.crop_x = Spinner(text = '100',
 						pos_hint={'x': .69, 'y': .6},
 						size_hint=(.1, .075),
-						input_filter='int',
+						values = tuple([str(i) for i in range(100,2,-1)]),
 						)
 
-			self.imgopnspopup.crop_y = TextInput(text = '100',
+			self.imgopnspopup.crop_y = Spinner(text = '100',
 						pos_hint={'x': .8, 'y': .6},
 						size_hint=(.1, .075),
-						input_filter='int',
+						values = tuple([str(i) for i in range(100,2,-1)]),
 						)
 
-			self.imgopnspopup.crop_opns_label = Label(text="Crop options",
+			self.imgopnspopup.crop_opns_label = Label(text="Crop options, %x, %y",
 							  font_size=14,
 							  pos_hint={'x': .2, 'y': .61},
 							  size_hint=(.2, .05))
@@ -609,20 +649,23 @@ class kivi_app(App):
 	
 		else:
 			print('hello')
-			self.imgopnspopup.old_state_img_options = self.imgopnspopup
+			self.imgopnspopup.old_state = self.imgopnspopup
 
-			self.imgopnspopup.old_state_img_options.arithmetic_opns_text = copy.deepcopy(self.imgopnspopup.arithmetic_opns.text)
-			self.imgopnspopup.old_state_img_options.color_opns_text = copy.deepcopy(self.imgopnspopup.color_opns.text)
+			self.imgopnspopup.old_state.arithmetic_opns_text = copy.deepcopy(self.imgopnspopup.arithmetic_opns.text)
+			self.imgopnspopup.old_state.color_opns_text = copy.deepcopy(self.imgopnspopup.color_opns.text)
+			self.imgopnspopup.old_state.crop_opns_text = copy.deepcopy(self.imgopnspopup.crop_opns.text)
+			self.imgopnspopup.old_state.crop_x_text = copy.deepcopy(self.imgopnspopup.crop_x.text)
+			self.imgopnspopup.old_state.crop_y_text = copy.deepcopy(self.imgopnspopup.crop_x.text)
 
-			# print(self.imgopnspopup.old_state_img_options.arithmetic_opns_text)
-			# print(self.imgopnspopup.old_state_img_options.color_opns_text)
+			# print(self.imgopnspopup.old_state.arithmetic_opns_text)
+			# print(self.imgopnspopup.old_state.color_opns_text)
 			self.imgopnspopup.cancel_btn.bind(on_release=self.OnImgOpnsCanceled)
 		self.imgopnspopup.open()
 		# all done, open the popup !
 		
 
 	def OnImgOpnsSaved(self, instance):
-		global arithmetic_op, color_space
+		global arithmetic_op, color_space, crop_type, crop_x, crop_y
 
 		arithmetic_op = self.imgopnspopup.arithmetic_opns.text
 		# print(arithmetic_op)
@@ -630,18 +673,25 @@ class kivi_app(App):
 		color_space = self.imgopnspopup.color_opns.text
 		# print(color_space)
 
+		crop_type = self.imgopnspopup.crop_opns.text
+		crop_x = int(self.imgopnspopup.crop_x.text)
+		crop_y = int(self.imgopnspopup.crop_y.text)
+
 		self.imgopnspopup.dismiss()
 
 
 	def OnImgOpnsCanceled(self, instance):
 
 		# assign each option to older state
-		# print(self.imgopnspopup.old_state_img_options.arithmetic_opns_text)
-		# print(self.imgopnspopup.old_state_img_options.color_opns_text)
-		self.imgopnspopup.arithmetic_opns.text = self.imgopnspopup.old_state_img_options.arithmetic_opns_text
+		# print(self.imgopnspopup.old_state.arithmetic_opns_text)
+		# print(self.imgopnspopup.old_state.color_opns_text)
+		self.imgopnspopup.arithmetic_opns.text = self.imgopnspopup.old_state.arithmetic_opns_text
 		# print(self.imgopnspopup.arithmetic_opns.text)
-		self.imgopnspopup.color_opns.text = self.imgopnspopup.old_state_img_options.color_opns_text
+		self.imgopnspopup.color_opns.text = self.imgopnspopup.old_state.color_opns_text
 		# print(self.imgopnspopup.color_opns.text)
+		self.imgopnspopup.crop_opns.text = self.imgopnspopup.old_state.crop_opns_text
+		self.imgopnspopup.crop_x.text = self.imgopnspopup.old_state.crop_x_text
+		self.imgopnspopup.crop_x.text = self.imgopnspopup.old_state.crop_y_text
 
 		self.imgopnspopup.dismiss()
 
@@ -979,10 +1029,10 @@ class kivi_app(App):
 			'control_change',	#channel control value
 			'note_on',	#channel note velocity
 			'note_off',	#channel note velocity
-			'polytouch',	#channel note value
+			# 'polytouch',	#channel note value
 			'program_change',	#channel program
-			'aftertouch',	#channel value
-			'pitchwheel',	#channel pitch
+			# 'aftertouch',	#channel value
+			# 'pitchwheel',	#channel pitch
 		)
 
 		self.message_type_selector = Spinner(# default value shown
