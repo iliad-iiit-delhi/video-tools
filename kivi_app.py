@@ -49,10 +49,15 @@ videofilepath = ''
 channel = 0
 message_type = 'control_change'
 num_frames_skip = 0
+control = 0
 
 
 arithmetic_op = 'Sum'
 color_space = 'RGB'
+
+modulo_value = 128
+range_min = 0
+range_max = 127
 
 # if stopped = 0, then it is not stopped, 1: paused, 2: stopped
 
@@ -191,9 +196,40 @@ def perform_arithmetic_opn():
 		return np.max(image)
 
 
-def build_message(value):
-	global channel, message_type
+def build_note():
 	pass
+
+
+def build_message(value):
+	global channel, message_type, control
+
+	# message_types = (
+	# 		'control_change',	#channel control value
+	# 		'note_on',	#channel note velocity
+	# 		'note_off',	#channel note velocity
+	# 		'polytouch',	#channel note value
+	# 		'program_change',	#channel program
+	# 		'aftertouch',	#channel value
+	# 		'pitchwheel',	#channel pitch
+	# 	)
+
+	if message_type == 'control_change':
+		msg = mido.Message('control_change', channel=channel, control=control, value=value)
+	elif message_type == 'note_on':
+		msg = mido.Message('note_on', note=value) # velocity and time missing
+	elif message_type == 'note_off':
+		msg = mido.Message('note_off', note=value) # velocity and time missing
+	elif message_type == 'polytouch':
+		pass
+	elif message_type == 'program_change':
+		msg = mido.Message('program_change', channel=channel, program=value) # time missing
+	elif message_type == 'polytouch':
+		pass
+	elif message_type == 'aftertouch':
+		pass
+	elif message_type == 'pitchwheel':
+		pass
+	return msg
 
 
 def send_message_midi():
@@ -206,41 +242,31 @@ def send_message_midi():
 		x = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
 		# print("cv2.CAP_PROP_POS_FRAMES:", x)
 		vidcap.set(cv2.CAP_PROP_POS_FRAMES, x+num_frames_skip)
-		# if x != 1:
-		# 	if x == 0:
-		# 		# TODO
-		# 		# some weird bug where this becomes 0 after reading the file once
-		# 		vidcap.set(cv2.CAP_PROP_POS_FRAMES, 1.0)
-		# 		print(vidcap.get(cv2.CAP_PROP_POS_FRAMES))
-		# 	# print(x+num_frames_skip)
-		# 	else:	
-		# 		vidcap.set(cv2.CAP_PROP_POS_FRAMES, x+num_frames_skip)
-		# 		# print(vidcap.get(cv2.CAP_PROP_POS_FRAMES))
 		success,image = vidcap.read()
 
 		if not success:
 			return
-
 		
 		image = convert_color_space()
 
 		print(image.shape)
 
 		img_change_ev.update_image(image)
-		# print('Read a new frame with shape: ', gray.shape)
 
 		# note = image_operation()
 		note = perform_arithmetic_opn()
+
+		# print(note)
+		# print(type(note))
 		message_count+=1
 
 		print(note)
 		note = int(note)
 		note=note%128
-
-		# print(note)
-		# print(type(note))
+		
 		# msg = mido.Message('note_on', note=int(note))
-		msg = mido.Message('control_change', channel=channel, control=16, value=note)
+		msg = build_message(note)
+		# msg = mido.Message('control_change', channel=channel, control=16, value=note)
 		outputport.send(msg)
 		print('Sent message ', msg, " : " , message_count)
 	except cv2.error as e:
@@ -440,16 +466,28 @@ class kivi_app(App):
 	def OnChannelChanged(self, spinner, text):
 		# pass
 		global channel
-		print("channel changed")
+		print("channel number changed")
 
 		channel = int(self.channel_selector.text)
 
 	def OnMessageTypeChanged(self, spinner, text):
 		global message_type
 
+		if self.message_type_selector.text != 'control_change':
+			self.control_selector.disabled = True
+		else:
+			self.control_selector.disabled = False
+
 		print("message type changed")
 
-		channel = self.message_type_selector.text
+		message_type = self.message_type_selector.text
+
+	def OnControlChanged(self, spinner, text):
+		global control
+
+		print("control value changed")
+
+		control = int(self.control_selector.text)
 
 	def OnFrameSkipChanged(self, instance, text):
 		# pass
@@ -619,118 +657,182 @@ class kivi_app(App):
 				title='Select value to note mapping', content=content, size_hint=(0.9, 0.9),
 				width=(0.9,0.9))
 
-			self.notemappopup.arithmetic_opns = Spinner(# default value shown
-					text = 'Sum',
+			self.notemappopup.opns = Spinner(# default value shown
+					text = 'Modulo',
 					# available values
-					values=('Sum','Product','Division','Difference','Power','Gradient','Exponential','Log','Max','Min','Median','Mode'),
+					values=('Modulo', 'Range fitting'),
 					pos_hint={'x': .53, 'y': .8},
 					size_hint=(.3, .075),
 					# on_text = self.OnPortChanged,
 					)
 
-			self.notemappopup.arithmetic_opns_label = Label(text="Arithmetic operation",
+			self.notemappopup.opns_label = Label(text="Select operation",
 							  font_size=14,
 							  pos_hint={'x': .2, 'y': .81},
 							  size_hint=(.2, .05))
 
-			self.notemappopup.color_opns = Spinner(# default value shown
-					text = 'RGB',
-					# available values
-					values=('RGB','Gray','HSV', 'YCrCb','XYZ','HLS'),
-					pos_hint={'x': .53, 'y': .7},
-					size_hint=(.3, .075),
+			self.notemappopup.modulo_opns = Spinner(# default value shown
+					text = '128',
+					# available value
+					values=tuple([str(i) for i in range(128,1,-1)]),
+					pos_hint={'x': .65, 'y': .7},
+					size_hint=(.08, .075),
 					# on_text = self.OnPortChanged,
 					)
 
-			self.notemappopup.color_opns_label = Label(text="Color space",
+			self.notemappopup.modulo_opns_label = Label(text="Modulo value",
 							  font_size=14,
 							  pos_hint={'x': .2, 'y': .71},
 							  size_hint=(.2, .05))
 
-			self.notemappopup.crop_opns = Spinner(# default value shown
-					text = 'Top left',
+			self.notemappopup.range_min_opns = Spinner(# default value shown
+					text = '0',
 					# available values
-					values=('Top left','Top right','Bottom left', 'Bottom right','Center'),
-					pos_hint={'x': .53, 'y': .6},
-					size_hint=(.15, .075),
-					# on_text = self.OnPortChanged,
+					values=tuple([str(i) for i in range(0,127)]),
+					pos_hint={'x': .65, 'y': .6},
+					size_hint=(.08, .075),
 					)
 
-			self.notemappopup.crop_x = TextInput(text = '100',
-						pos_hint={'x': .69, 'y': .6},
-						size_hint=(.1, .075),
-						input_filter='int',
-						)
-
-			self.notemappopup.crop_y = TextInput(text = '100',
-						pos_hint={'x': .8, 'y': .6},
-						size_hint=(.1, .075),
-						input_filter='int',
-						)
-
-			self.notemappopup.crop_opns_label = Label(text="Crop options",
+			self.notemappopup.range_min_opns_label = Label(text="Range minimum",
 							  font_size=14,
 							  pos_hint={'x': .2, 'y': .61},
 							  size_hint=(.2, .05))
 
-			self.notemappopup.border_opns = Spinner(# default value shown
-					text = "Select border parameters",
+			self.notemappopup.range_max_opns = Spinner(# default value shown
+					text = '127', 
 					# available values
-					values=(),
-					pos_hint={'x': .53, 'y': .5},
-					size_hint=(.3, .075),
-					# on_text = self.OnPortChanged,
+					values = tuple([str(i) for i in range(127,2,-1)]),
+					pos_hint={'x': .65, 'y': .5},
+					size_hint=(.08, .075),
+					# disabled = True,
 					)
 
-			self.notemappopup.border_opns_label = Label(text="Add border",
+			self.notemappopup.range_max_opns_label = Label(text="Range maximum",
 							  font_size=14,
 							  pos_hint={'x': .2, 'y': .51},
 							  size_hint=(.2, .05))
 		
-			# 2 buttons are created for accept or cancel the current value
-			# btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='20dp')
+			
 			self.notemappopup.save_btn = Button(text='Save', pos_hint={'x': .2, 'y': .075}, size_hint = (.25, .075))
-			self.notemappopup.save_btn.bind(on_release=self.notemappopup.dismiss)
+			self.notemappopup.save_btn.bind(on_release=self.OnNoteMapOpnsSaved)
 			content.add_widget(self.notemappopup.save_btn)
-			# btn.bind(on_release=self.select_video_file_path)
-			# btnlayout.add_widget(btn)
+			
 			self.notemappopup.cancel_btn = Button(text='Cancel', pos_hint = {'x': .55, 'y': .075}, size_hint = (.25, .075))
 			self.notemappopup.cancel_btn.bind(on_release=self.notemappopup.dismiss)
 			content.add_widget(self.notemappopup.cancel_btn)
-			# btnlayout.add_widget(btn)
-			# content.add_widget(btnlayout)
-			content.add_widget(self.notemappopup.arithmetic_opns_label)
-			content.add_widget(self.notemappopup.arithmetic_opns)
-			content.add_widget(self.notemappopup.color_opns_label)
-			content.add_widget(self.notemappopup.color_opns)
-			content.add_widget(self.notemappopup.crop_opns_label)
-			content.add_widget(self.notemappopup.crop_opns)
-			content.add_widget(self.notemappopup.crop_x)
-			content.add_widget(self.notemappopup.crop_y)
-			content.add_widget(self.notemappopup.border_opns_label)
-			content.add_widget(self.notemappopup.border_opns)
+		
+			content.add_widget(self.notemappopup.opns_label)
+			content.add_widget(self.notemappopup.opns)
+			content.add_widget(self.notemappopup.modulo_opns_label)
+			content.add_widget(self.notemappopup.modulo_opns)
+			content.add_widget(self.notemappopup.range_min_opns_label)
+			content.add_widget(self.notemappopup.range_min_opns)
+			content.add_widget(self.notemappopup.range_max_opns)
+			content.add_widget(self.notemappopup.range_max_opns_label)
+
+			self.notemappopup.range_min_opns.disabled = True
+			self.notemappopup.range_max_opns.disabled = True
+			self.notemappopup.opns.bind(text = self.OnNotemappopupOpnsChanged)
 	
 		else:
-			print('hello')
-			# self.notemappopup.old_state_img_options = self.notemappopup
+			# print('hello')
+			self.notemappopup.old_state = self.notemappopup
 			
-			# self.notemappopup.old_state_img_options.arithmetic_opns_text = copy.deepcopy(self.notemappopup.arithmetic_opns.text)
-			# self.notemappopup.old_state_img_options.color_opns_text = copy.deepcopy(self.notemappopup.color_opns.text)
+			self.notemappopup.old_state.opns_text = copy.deepcopy(self.notemappopup.opns.text)
+			self.notemappopup.old_state.modulo_opns_text = copy.deepcopy(self.notemappopup.modulo_opns.text)
+			self.notemappopup.old_state.range_min_opns_text = copy.deepcopy(self.notemappopup.range_min_opns.text)
+			self.notemappopup.old_state.range_max_opns_text = copy.deepcopy(self.notemappopup.range_max_opns.text)
 
-			# print(self.notemappopup.old_state_img_options.arithmetic_opns_text)
-			# print(self.notemappopup.old_state_img_options.color_opns_text)
-			# self.notemappopup.cancel_btn.bind(on_release=self.OnImgOpnsCanceled)
+			# print(self.notemappopup.old_state.opns_text)
+			# print(self.notemappopup.old_state.modulo_opns_text)
+			# print(self.notemappopup.old_state.range_min_opns_text)
+			# print(self.notemappopup.old_state.range_max_opns_text)
+			
+			self.notemappopup.cancel_btn.bind(on_release=self.OnNoteMapOpnsCanceled)
 		
 		self.notemappopup.open()
 	
 		# all done, open the popup !
+
+	def OnNotemappopupOpnsChanged(self, spinner, text):
+		print('hello')
+		if self.notemappopup.opns.text == 'Modulo':
+			self.notemappopup.modulo_opns.disabled = False
+			self.notemappopup.range_min_opns.disabled = True
+			self.notemappopup.range_max_opns.disabled = True
+		elif self.notemappopup.opns.text == 'Range fitting':
+			self.notemappopup.modulo_opns.disabled = True
+			self.notemappopup.range_min_opns.disabled = False
+			self.notemappopup.range_max_opns.disabled = False
+
+	def OnNoteMapOpnsSaved(self, instance):
+		# pass
+
+		self.notemappopup.dismiss()
 		
+	def OnNoteMapOpnsCanceled(self, instance):
+		# assign each option to older state
+		self.notemappopup.opns.text = self.notemappopup.old_state.opns_text
+		self.notemappopup.modulo_opns.text = self.notemappopup.old_state.modulo_opns_text
+		self.notemappopup.range_min_opns.text = self.notemappopup.old_state.range_min_opns_text
+		self.notemappopup.range_max_opns.text = self.notemappopup.old_state.range_max_opns_text
+		self.notemappopup.dismiss()
 
 	def on_checkbox_active(checkbox, value):
 		if value:
 			print('The checkbox', checkbox, 'is active')
 		else:
 			print('The checkbox', checkbox, 'is inactive')
+
+	def OnRefreshBtnPressed(self, instance):
+
+		global rate_transfer, message_count, rtmidi, midiports, outputport, img_change_ev
+
+		rate_transfer = self.slider1.value
+		message_count = 0
+		rtmidi = mido.Backend('mido.backends.rtmidi')
+		# portmidi = mido.Backend('mido.backends.portmidi')
+
+		# inputport = rtmidi.open_input()
+		# outputport = rtmidi.open_output('loopMIDI Port 1', virtual=True) #gives windows error
+		# outputport = portmidi.open_output('loopMIDI Port 1', virtual=True) #gives windows error
+		try: 
+			midiports = mido.get_output_names()
+			print(midiports)
+			if len(midiports) == 1: #On Windows there is a single ['Microsoft GS Wavetable Synth 0'] available by default
+				self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
+			else:
+				# outputport = rtmidi.open_output(midiports[1]) #try 
+
+				self.transfer_rate_label.text = "Rate of transfer (delay) in secs: " + str(rate_transfer)
+				print(cv2.__version__)
+				# self.event = None
+				self.slider1.bind(value = self.OnSliderValueChange)
+				self.run_button.bind(on_press= self.OnRunButtonPressed)
+				self.stop_button.bind(on_press = self.OnStopButtonPressed)
+				self.pause_button.bind(on_press = self.OnPauseButtonPressed)
+				# self.image_box.bind()
+				img_change_ev.bind(on_img_change = self.OnImageChanged)
+				self.file_selector.bind(on_press = self.create_popup)
+
+				self.portsdropdown.text = midiports[0]
+				self.portsdropdown.values = tuple(midiports)
+				self.portsdropdown.bind(text = self.OnPortChanged)
+				self.message_type_selector.bind(text = self.OnMessageTypeChanged)
+
+				self.channel_selector.bind(text = self.OnChannelChanged)
+				self.control_selector.bind(text = self.OnControlChanged)
+
+				self.frames_skip_btn.bind(text = self.OnFrameSkipChanged)
+
+				self.img_opns_btn.bind(on_press=self.OnImgOpnsButtonPressed)
+				self.note_mapping_btn.bind(on_press=self.OnNoteMapButtonPressed)
+
+				# self.refresh_btn.bind(on_press=self.OnRefreshBtnPresssed)
+
+		except Exception as e:
+			self.transfer_rate_label.text = str(e)
+			print(str(e))
 
 	def build(self):
 
@@ -764,10 +866,21 @@ class kivi_app(App):
 							 # size_hint=(None, None)
 							 )
 
+		self.title_label = Label(text="ILIAD Video Sonification Tools",
+						  font_size=25,
+						  color=[63/255, 173/255, 168/255, 1],
+						  # color=[105, 106, 188, 1],
+						  # rgba(240,255,255 ,1 )
+						  pos_hint={'x': .4, 'y': .84},
+						  size_hint=(.2, .2),
+						  bold = True,
+						  # italic = True,
+						  )
+
 
 		self.transfer_rate_label = Label(text="Rate of transfer (delay) in secs: 1",
-						  font_size=15,
-						  pos_hint={'x': .2, 'y': .8},
+						  font_size=12,
+						  pos_hint={'x': .2, 'y': .78},
 						  size_hint=(.2, .2))
 
 		self.run_button = Button(text='Run',
@@ -796,8 +909,8 @@ class kivi_app(App):
 		self.slider1 = Slider(min=0.1,
 					 max=10, 
 					 value=1,
-					 step = 1,
-					 pos_hint={'x': .15, 'y': .8},
+					 step = 0.01,
+					 pos_hint={'x': .15, 'y': .77},
 					 size_hint=(.3, .1),
 					 )
 
@@ -821,7 +934,7 @@ class kivi_app(App):
 				# size=(100, 44),
 				# size_hint=(None, None),
 				pos_hint={'x': .65, 'y': .8},
-				size_hint=(.25, .075),
+				size_hint=(.25, .07),
 				# on_text = self.OnPortChanged,
 				)
 
@@ -839,18 +952,34 @@ class kivi_app(App):
 				# size=(100, 44),
 				# size_hint=(None, None),
 				pos_hint={'x': .65, 'y': .68},
-				size_hint=(.25, .075))
+				size_hint=(.075, .07))
 
 		self.channel_label = Label(text="Channel Number",
 						  font_size=12,
 						  pos_hint={'x': .47, 'y': .69},
 						  size_hint=(.2, .05))
 
+		self.control_selector = Spinner(# default value shown
+				text='0',
+				# available values
+				values = tuple([str(i) for i in range(16)]),
+				# just for positioning in our example
+				# size_hint=(None, None),
+				# size=(100, 44),
+				# size_hint=(None, None),
+				pos_hint={'x': .82, 'y': .68},
+				size_hint=(.075, .07))
+
+		self.control_label = Label(text="Control",
+						  font_size=12,
+						  pos_hint={'x': .73, 'y': .69},
+						  size_hint=(.1, .05))
+
 		message_types = (
-			'note_off',	#channel note velocity
-			'note_on',	#channel note velocity
-			'polytouch',	#channel note value
 			'control_change',	#channel control value
+			'note_on',	#channel note velocity
+			'note_off',	#channel note velocity
+			'polytouch',	#channel note value
 			'program_change',	#channel program
 			'aftertouch',	#channel value
 			'pitchwheel',	#channel pitch
@@ -865,7 +994,7 @@ class kivi_app(App):
 				# size=(100, 44),
 				# size_hint=(None, None),
 				pos_hint={'x': .65, 'y': .56},
-				size_hint=(.25, .075))
+				size_hint=(.25, .07))
 
 		self.message_label = Label(text="Message Type",
 						  font_size=12,
@@ -874,7 +1003,7 @@ class kivi_app(App):
 
 		self.img_opns_btn = Button(text = 'Select',
 					pos_hint={'x': .67, 'y': .43},
-					size_hint=(.2, .075),)
+					size_hint=(.2, .07),)
 
 		self.img_opns_label = Label(text="Select image operations",
 						  font_size=12,
@@ -901,30 +1030,31 @@ class kivi_app(App):
 						  pos_hint={'x': .47, 'y': .23},
 						  size_hint=(.2, .05))
 
-		self.midi_toggle = CheckBox(
-					# text = 'Select',
-					pos_hint={'x': .63, 'y': .11},
-					size_hint=(.2, .075),
-					group = 'group',
-					active = True)
+		# self.midi_toggle = CheckBox(
+		# 			# text = 'Select',
+		# 			pos_hint={'x': .63, 'y': .11},
+		# 			size_hint=(.2, .075),
+		# 			group = 'group',
+		# 			active = True)
 
-		self.osc_toggle = CheckBox(
-					# text = 'Select',
-					pos_hint={'x': .70, 'y': .11},
-					size_hint=(.2, .075),
-					group = 'group',
-					active = False)
+		# self.osc_toggle = CheckBox(
+		# 			# text = 'Select',
+		# 			pos_hint={'x': .70, 'y': .11},
+		# 			size_hint=(.2, .075),
+		# 			group = 'group',
+		# 			active = False)
 
-		# CheckBox.group = 
+		self.refresh_btn = Button(text = 'Refresh',
+					pos_hint={'x': .67, 'y': .11},
+					size_hint=(.2, .075),)
 
-		self.midi_label = Label(text="Send MIDI/OSC messages",
+		self.refresh_label = Label(text="Refresh MIDI ports",
 						  font_size=12,
 						  pos_hint={'x': .47, 'y': .12},
 						  size_hint=(.2, .05))
 
-
+		FLOAT_LAYOUT.add_widget(self.title_label)
 		FLOAT_LAYOUT.add_widget(self.transfer_rate_label)
-		# FLOAT_LAYOUT.add_widget(text_box)
 		FLOAT_LAYOUT.add_widget(self.image_box)
 		self.image_box.add_widget(self.im)
 		FLOAT_LAYOUT.add_widget(self.run_button)
@@ -945,11 +1075,18 @@ class kivi_app(App):
 		FLOAT_LAYOUT.add_widget(self.frames_skip_label)
 		FLOAT_LAYOUT.add_widget(self.note_mapping_btn)
 		FLOAT_LAYOUT.add_widget(self.note_mapping_label)
-		FLOAT_LAYOUT.add_widget(self.midi_label)
-		FLOAT_LAYOUT.add_widget(self.midi_toggle)
-		FLOAT_LAYOUT.add_widget(self.osc_toggle)
+
+		FLOAT_LAYOUT.add_widget(self.refresh_btn)
+		FLOAT_LAYOUT.add_widget(self.refresh_label)
+
+		# FLOAT_LAYOUT.add_widget(self.midi_toggle)
+		# FLOAT_LAYOUT.add_widget(self.osc_toggle)
+		FLOAT_LAYOUT.add_widget(self.control_selector)
+		FLOAT_LAYOUT.add_widget(self.control_label)
 
 		self.run_button.disabled = self.pause_button.disabled = self.stop_button.disabled = True
+
+		self.refresh_btn.bind(on_press=self.OnRefreshBtnPressed)
 
 		global rate_transfer, message_count, rtmidi, midiports, outputport, img_change_ev
 
@@ -968,7 +1105,7 @@ class kivi_app(App):
 				self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
 			else:
 				# outputport = rtmidi.open_output(midiports[1]) #try 
-
+				self.transfer_rate_label.text = "Rate of transfer (delay) in secs: " + str(rate_transfer)
 				print(cv2.__version__)
 				# self.event = None
 				self.slider1.bind(value = self.OnSliderValueChange)
@@ -979,28 +1116,24 @@ class kivi_app(App):
 				img_change_ev.bind(on_img_change = self.OnImageChanged)
 				self.file_selector.bind(on_press = self.create_popup)
 
-				self.portsdropdown.text = midiports[1]
+				self.portsdropdown.text = midiports[0]
 				self.portsdropdown.values = tuple(midiports)
 				self.portsdropdown.bind(text = self.OnPortChanged)
 				self.message_type_selector.bind(text = self.OnMessageTypeChanged)
 
 				self.channel_selector.bind(text = self.OnChannelChanged)
+				self.control_selector.bind(text = self.OnControlChanged)
 
 				self.frames_skip_btn.bind(text = self.OnFrameSkipChanged)
 
 				self.img_opns_btn.bind(on_press=self.OnImgOpnsButtonPressed)
 				self.note_mapping_btn.bind(on_press=self.OnNoteMapButtonPressed)
 
-
 		except Exception as e:
 			self.transfer_rate_label.text = str(e)
 			print(str(e))
 		
 		return FLOAT_LAYOUT
-
-	def calculate(self, *args):
-		print(args)
-
 
 if __name__ == '__main__':
 
