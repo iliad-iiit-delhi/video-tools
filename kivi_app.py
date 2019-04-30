@@ -51,6 +51,7 @@ message_type = 'control_change'
 num_frames_skip = 0
 control = 0
 
+message_sent = ''
 
 arithmetic_op = 'Sum'
 color_space = 'RGB'
@@ -106,51 +107,17 @@ def read_video():
 		# g = random.randint(, 40)
 		# b = random.randint(30, 50)
 		# send_RGB(r)
-	print('Stopped:', stopped)
+	# print('Stopped:', stopped) #TODO 
 	if not success:
-		print('Finished reading video file!')
+		# print('Finished reading video file!') # TODO
+		msg_change_ev.update_msg('Finished reading video file!')
 		# print(vidcap.get(cv2.CAP_PROP_POS_FRAMES))
 		stopped = 2 
 		vidcap.release()
 	elif stopped == 2:
 		# rate_transfer = 0
-		print('Stopped')
+		# print('Stopped') # TODO
 		vidcap.release()
-
-def image_operation():
-	global image
-
-	image = perform_arithmetic_opn()
-
-	return image
-
-	# 1. copyMakeBorder
-	# replicate = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_REPLICATE)
-	# reflect = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_REFLECT)
-	# reflect101 = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_REFLECT_101)
-	# wrap = cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_WRAP)
-	# constant= cv2.copyMakeBorder(img1,10,10,10,10,cv2.BORDER_CONSTANT,value=BLUE)
-
-	# 2. Select image sections
-	# select percentx, percenty, corner
-
-	# 3. Bitwise operations
-	# Now create a mask of logo and create its inverse mask also
-	# img2gray = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
-	# ret, mask = cv2.threshold(img2gray, 10, 255, cv2.THRESH_BINARY)
-	# mask_inv = cv2.bitwise_not(mask)
-
-	# # Now black-out the area of logo in ROI
-	# img1_bg = cv2.bitwise_and(roi,roi,mask = mask_inv)
-
-	# # Take only region of logo from logo image.
-	# img2_fg = cv2.bitwise_and(img2,img2,mask = mask)
-
-	# # Put logo in ROI and modify the main image
-	# dst = cv2.add(img1_bg,img2_fg)
-	# img1[0:rows, 0:cols ] = dst
-
-	# 4. 
 
 
 def convert_color_space():
@@ -214,7 +181,7 @@ def add_border():
 	if border_op == 'No border':
 		return image
 	elif border_op == 'Constant':
-		print(border_color.upper())
+		# print(border_color.upper())
 		BLACK = [0, 0, 0]
 		RED = [0,0,255]
 		GREEN = [0,255,0]
@@ -250,7 +217,7 @@ def add_noise():
 
 def crop_image():
 	global image, crop_type, crop_x, crop_y
-	print('Cropping:', image.shape)
+	# print('Cropping:', image.shape)
 	# let it be bgr image (default) as it would be a big pain to crop color space changed image
 	# 'Top left','Top right','Bottom left', 'Bottom right','Center'),
 	if crop_x == 100 and crop_y == 100:
@@ -313,9 +280,7 @@ def build_message(value):
 
 def send_message_midi():
 	
-	global vidcap, message_count, outputport, success, image, img_change_ev, num_frames_skip, channel, message_type
-	# cv2.imwrite("frame%d.jpg" % count, image)     # save frame as JPEG file
-	# print(dt)
+	global vidcap, message_count, outputport, success, image, img_change_ev, num_frames_skip, channel, message_type, message_sent
 	try:
 		# if vidcap.isOpened()
 		x = vidcap.get(cv2.CAP_PROP_POS_FRAMES)
@@ -334,7 +299,7 @@ def send_message_midi():
 
 		image = convert_color_space()
 
-		print(image.shape)
+		# print(image.shape)
 
 		img_change_ev.update_image(image)
 
@@ -342,16 +307,37 @@ def send_message_midi():
 
 		message_count+=1
 
-		print(value)
+		# print(value)
 		value = int(value)
 		note = build_note(value)
 		
 		msg = build_message(note)
 		
 		outputport.send(msg)
-		print('Sent message ', msg, " : " , message_count)
+
+		message_sent = "Sent message {} : {} ".format(message_count, str(msg)) # TODO
+
+		msg_change_ev.update_msg(message_sent)
+
 	except cv2.error as e:
-		print(str(e))
+		# print(str(e))
+		msg_change_ev.update_msg(str(e))
+
+
+class MessageChangeEventDispatcher(EventDispatcher):
+	def __init__(self, **kwargs):
+		self.register_event_type('on_msg_change')
+		super(MessageChangeEventDispatcher, self).__init__(**kwargs)
+
+	def update_msg(self, value):
+		self.dispatch('on_msg_change', value)
+
+	def on_msg_change(self, *args):
+		# print("I am dispatched")
+		# dummy, actual work done in UI
+		pass
+
+msg_change_ev = MessageChangeEventDispatcher()
 
 
 class Imglayout(FloatLayout):
@@ -376,7 +362,7 @@ class ImageChangeEventDispatcher(EventDispatcher):
 		super(ImageChangeEventDispatcher, self).__init__(**kwargs)
 
 	def update_image(self, value):
-		# when update_image is called, the 'on_test' event will be
+		# when update_image is called, the 'on_img_change' event will be
 		# dispatched with the value
 		self.dispatch('on_img_change', value)
 
@@ -395,8 +381,10 @@ class kivi_app(App):
 		try:
 			midiports = mido.get_output_names()
 			if self.portsdropdown.text not in midiports:
-				self.transfer_rate_label.text = 'An unexpected error occured. Please check the midi ports.'
-				print(str(e))
+				# self.transfer_rate_label.text = 'An unexpected error occured. Please check the midi ports.'
+				msg_change_ev.update_msg('An unexpected error occured. Please check the midi ports.')
+				# print(str(e))
+
 			else:
 				if outputport is None:
 					outputport = rtmidi.open_output(self.portsdropdown.text)
@@ -409,20 +397,18 @@ class kivi_app(App):
 					vidcap = None #video had been stopped, so start over
 					vidcap = cv2.VideoCapture(videofilepath)
 					stopped = 0
-				elif stopped == 1: # TODO: and the video path has changed 
+				elif stopped == 1: 
 					stopped = 0 # video had been paused, so do nothing
 				success = True
-				print(vidcap)
+				# print(vidcap)
 				self.file_selector.disabled = True
-				# success,image = self.vidcap.read()
+	
 				read_video()
-				# self.event.cancel()
-				# self.event = Clock.schedule_interval(self.send_next_message_callback,self.rate_transfer)
-				# return event
 			
 		except Exception as e:
-			self.transfer_rate_label.text = 'An unexpected error occured. Please check the midi ports.'
-			print(str(e))
+			msg_change_ev.update_msg('An unexpected error occured. Please check the midi ports.')
+			# self.transfer_rate_label.text = 'An unexpected error occured. Please check the midi ports.'
+			# print(str(e))
 		
 
 	def OnImageChanged(self, _, __):
@@ -433,13 +419,8 @@ class kivi_app(App):
 			buf = buf1.tostring()
 			image_texture = Texture.create(size=(image.shape[1], image.shape[0]),colorfmt='luminance')
 			image_texture.blit_buffer(buf, colorfmt='luminance', bufferfmt='ubyte')
-		# elif color_space == 'HSV':
-		# 	buf1 = cv2.flip(image, 0)	
-		# 	buf = buf1.tostring()
-		# 	image_texture = Texture.create(size=(image.shape[1], image.shape[0]),colorfmt='rgb')
-		# 	image_texture.blit_buffer(buf, colorfmt='rgb', bufferfmt='ubyte')
 		else:
-			print(image.shape)
+			# print(image.shape)
 			buf1 = cv2.flip(image, 0)
 			buf = buf1.tostring()
 			image_texture = Texture.create(size=(image.shape[1], image.shape[0]),colorfmt='bgr')
@@ -447,12 +428,15 @@ class kivi_app(App):
 		# display image from the texture
 		self.im.texture = image_texture
 
+	def OnPrintMessageChanged(self, _, __):
+		global message_sent
+
+		self.print_message_label.text = message_sent
+
 	def OnStopButtonPressed(self, instance):
 		# pass
 		global stopped
 		stopped = 2
-		# if self.event != None:
-		# 	Clock.unschedule(self.event)
 		self.file_selector.disabled = False
 
 	def OnPauseButtonPressed(self, instance):
@@ -460,21 +444,16 @@ class kivi_app(App):
 		global stopped
 		if stopped == 0:
 			stopped = 1
-		# if self.event != None:
-		# 	Clock.unschedule(self.event)
 		self.file_selector.disabled = False
 
 	def OnSliderValueChange(self, instance,value):
 		global rate_transfer
 		self.transfer_rate_label.text = "Rate of transfer (delay) in secs: " + str(value)
 		rate_transfer = value
-		# print(value, rate_transfer)
-		# self.event = Clock.schedule_interval(self.send_next_message_callback,self.rate_transfer)
-
-		#TODO: interrupt the timer of the sending of messages
 
 	def create_popup(self, instance):
 		# create popup layout
+
 		content = BoxLayout(orientation='vertical', spacing=5)
 		# popup_width = min(0.95 * Window.width, dp(500))
 		self.filechooserpopup = Popup(
@@ -488,10 +467,9 @@ class kivi_app(App):
 	
 		# construct the content
 		content.add_widget(self.filechooserview)
-		# content.add_widget(SettingSpacer())
 	
 		# 2 buttons are created for accept or cancel the current value
-		btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='20dp')
+		btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='40dp')
 		btn = Button(text='Ok')
 
 		btn.bind(on_release=self.select_video_file_path)
@@ -506,8 +484,8 @@ class kivi_app(App):
 
 	def select_video_file_path(self, instance):
 		global videofilepath, stopped
-		# videofilepath = self.filechooserview.selection
-		print(self.filechooserview.selection)
+		
+		# print(self.filechooserview.selection)
 		if len(self.filechooserview.selection) == 0:
 			content = BoxLayout(orientation='vertical', spacing=5)
 			popup = Popup(
@@ -529,14 +507,16 @@ class kivi_app(App):
 	def OnPortChanged(self, spinner, text):
 		# pass
 		global outputport, midiports, rtmidi
-		print("port changed")
+		# print("port changed")
+		msg_change_ev.update_msg('Port changed')
 
 		midiports = mido.get_output_names()
 		if midiports == []:
 			return
 		elif self.portsdropdown.text not in midiports:
-			self.transfer_rate_label.text = 'An unexpected error occured. Please check the midi ports.'
-			print(str(e))
+			# self.transfer_rate_label.text = 'An unexpected error occured. Please check the midi ports.'
+			msg_change_ev.update_msg('An unexpected error occured. Please check the midi ports.')
+			# print(str(e))
 		else:
 			if outputport is None:
 				outputport = rtmidi.open_output(self.portsdropdown.text)
@@ -547,7 +527,8 @@ class kivi_app(App):
 	def OnChannelChanged(self, spinner, text):
 		# pass
 		global channel
-		print("channel number changed")
+		# print("channel number changed")
+		msg_change_ev.update_msg('Channel number changed')
 
 		channel = int(self.channel_selector.text)
 
@@ -564,39 +545,34 @@ class kivi_app(App):
 			self.control_selector.disabled = True
 			self.channel_selector.disabled = False
 
-		print("message type changed")
+		# print("message type changed")
+		msg_change_ev.update_msg('Message type changed')
 
 		message_type = self.message_type_selector.text
 
 	def OnControlChanged(self, spinner, text):
 		global control
 
-		print("control value changed")
+		# print("control value changed")
+		msg_change_ev.update_msg('Control value changed')
 
 		control = int(self.control_selector.text)
 
 	def OnFrameSkipChanged(self, instance, text):
 		# pass
 		global num_frames_skip, vidcap
-		print("number of frames to skip changed")
+		# print("number of frames to skip changed")
+		msg_change_ev.update_msg('Number of frames to skip changed')
 
 		if self.frames_skip_btn.text == '':
 			num_frames_skip = 0
 		else:
 			num_frames_skip = int(self.frames_skip_btn.text)
-		print(num_frames_skip)
-
-		# if vidcap.isOpened():
-		# 	vidcap.set(cv2.CAP_PROP_POS_FRAMES, start_frame_number)
+		# print(num_frames_skip)
 
 	def OnImgOpnsButtonPressed(self, instance):
-		# pass
-		# content = BoxLayout(orientation='vertical', spacing=5)
-		# popup_width = min(0.95 * Window.width, dp(500))
 		if self.imgopnspopup == None:
 			content = FloatLayout(size=(400, 400), 
-			# orientation='vertical', 
-			# spacing=5
 			)
 			self.imgopnspopup = Popup(
 				title='Select image operations. These are applied to the pixels of the images.', content=content, size_hint=(0.9, 0.9),
@@ -622,7 +598,6 @@ class kivi_app(App):
 						),
 					pos_hint={'x': .53, 'y': .8},
 					size_hint=(.3, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.imgopnspopup.arithmetic_opns_label = Label(text="Arithmetic operation",
@@ -636,7 +611,6 @@ class kivi_app(App):
 					values=('RGB','Gray','HSV', 'YCrCb','XYZ','HLS'),
 					pos_hint={'x': .53, 'y': .7},
 					size_hint=(.3, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.imgopnspopup.color_opns_label = Label(text="Color space",
@@ -652,7 +626,6 @@ class kivi_app(App):
 						),
 					pos_hint={'x': .53, 'y': .6},
 					size_hint=(.15, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.imgopnspopup.crop_x = Spinner(text = '100',
@@ -678,7 +651,6 @@ class kivi_app(App):
 					values=('No border', 'Constant', 'Replicate', 'Reflect', 'Wrap'),
 					pos_hint={'x': .53, 'y': .5},
 					size_hint=(.15, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.imgopnspopup.border_color = Spinner(# default value shown
@@ -687,7 +659,6 @@ class kivi_app(App):
 					values=('red', 'blue', 'green','white','black'),
 					pos_hint={'x': .69, 'y': .5},
 					size_hint=(.1, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.imgopnspopup.border_width = Spinner(# default value shown
@@ -696,7 +667,6 @@ class kivi_app(App):
 					values=tuple([str(i) for i in range(10,101)]),
 					pos_hint={'x': .8, 'y': .5},
 					size_hint=(.1, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.imgopnspopup.border_opns_label = Label(text="Border parameters, color, width",
@@ -713,7 +683,6 @@ class kivi_app(App):
 						),
 					pos_hint={'x': .53, 'y': .4},
 					size_hint=(.3, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.imgopnspopup.noise_opns_label = Label(text="Add noise",
@@ -721,18 +690,13 @@ class kivi_app(App):
 							  pos_hint={'x': .2, 'y': .41},
 							  size_hint=(.1, .05))
 		
-			# 2 buttons are created for accept or cancel the current value
-			# btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='20dp')
 			self.imgopnspopup.save_btn = Button(text='Save', pos_hint={'x': .2, 'y': .075}, size_hint = (.25, .075))
 			self.imgopnspopup.save_btn.bind(on_release=self.OnImgOpnsSaved)
 			content.add_widget(self.imgopnspopup.save_btn)
-			# btn.bind(on_release=self.select_video_file_path)
-			# btnlayout.add_widget(btn)
 			self.imgopnspopup.cancel_btn = Button(text='Cancel', pos_hint = {'x': .55, 'y': .075}, size_hint = (.25, .075))
 			self.imgopnspopup.cancel_btn.bind(on_release=self.imgopnspopup.dismiss)
 			content.add_widget(self.imgopnspopup.cancel_btn)
-			# btnlayout.add_widget(btn)
-			# content.add_widget(btnlayout)
+			
 			content.add_widget(self.imgopnspopup.arithmetic_opns_label)
 			content.add_widget(self.imgopnspopup.arithmetic_opns)
 			content.add_widget(self.imgopnspopup.color_opns_label)
@@ -749,7 +713,6 @@ class kivi_app(App):
 			content.add_widget(self.imgopnspopup.noise_opns_label)
 
 		else:
-			# print('hello')
 			self.imgopnspopup.old_state = self.imgopnspopup
 
 			self.imgopnspopup.old_state.arithmetic_opns_text = copy.deepcopy(self.imgopnspopup.arithmetic_opns.text)
@@ -818,11 +781,9 @@ class kivi_app(App):
 		# pass
 		if self.notemappopup == None:
 			content = FloatLayout(size=(400, 400), 
-			# orientation='vertical', 
-			# spacing=5
 			)
 			self.notemappopup = Popup(
-				title='Select value to note mapping', content=content, size_hint=(0.9, 0.9),
+				title='Select value to note mapping. The value obtained from the image operations is converted to MIDI format', content=content, size_hint=(0.9, 0.9),
 				width=(0.9,0.9))
 
 			self.notemappopup.opns = Spinner(# default value shown
@@ -831,7 +792,6 @@ class kivi_app(App):
 					values=('Modulo', 'Range fitting'),
 					pos_hint={'x': .53, 'y': .8},
 					size_hint=(.3, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.notemappopup.opns_label = Label(text="Select operation",
@@ -845,7 +805,6 @@ class kivi_app(App):
 					values=tuple([str(i) for i in range(128,1,-1)]),
 					pos_hint={'x': .65, 'y': .7},
 					size_hint=(.08, .075),
-					# on_text = self.OnPortChanged,
 					)
 
 			self.notemappopup.modulo_opns_label = Label(text="Modulo value",
@@ -872,7 +831,6 @@ class kivi_app(App):
 					values = tuple([str(i) for i in range(127,2,-1)]),
 					pos_hint={'x': .65, 'y': .5},
 					size_hint=(.08, .075),
-					# disabled = True,
 					)
 
 			self.notemappopup.range_max_opns_label = Label(text="Range maximum",
@@ -923,7 +881,7 @@ class kivi_app(App):
 		# all done, open the popup !
 
 	def OnNotemappopupOpnsChanged(self, spinner, text):
-		print('hello')
+		# print('hello')
 		if self.notemappopup.opns.text == 'Modulo':
 			# self.notemappopup.modulo_opns.disabled = False
 			self.notemappopup.range_min_opns.disabled = True
@@ -968,11 +926,11 @@ class kivi_app(App):
 		self.notemappopup.range_max_opns.text = self.notemappopup.old_state.range_max_opns_text
 		self.notemappopup.dismiss()
 
-	def on_checkbox_active(checkbox, value):
-		if value:
-			print('The checkbox', checkbox, 'is active')
-		else:
-			print('The checkbox', checkbox, 'is inactive')
+	# def on_checkbox_active(checkbox, value):
+	# 	if value:
+	# 		print('The checkbox', checkbox, 'is active')
+	# 	else:
+	# 		print('The checkbox', checkbox, 'is inactive')
 
 	def OnRefreshBtnPressed(self, instance):
 
@@ -988,15 +946,16 @@ class kivi_app(App):
 		# outputport = portmidi.open_output('loopMIDI Port 1', virtual=True) #gives windows error
 		try: 
 			midiports = mido.get_output_names()
-			print(midiports)
+			# print(midiports)
 			if len(midiports) == 0: #On Windows there is a single ['Microsoft GS Wavetable Synth 0'] available by default
-				self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
+				# self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
+				msg_change_ev.update_msg('No MIDI input devices are currently available.')
 			else:
 				# outputport = rtmidi.open_output(midiports[1]) #try 
 
 				self.transfer_rate_label.text = "Rate of transfer (delay) in secs: " + str(rate_transfer)
-				print(cv2.__version__)
-				# self.event = None
+				# print(cv2.__version__)
+				
 				self.slider1.bind(value = self.OnSliderValueChange)
 				self.run_button.bind(on_press= self.OnRunButtonPressed)
 				self.stop_button.bind(on_press = self.OnStopButtonPressed)
@@ -1018,11 +977,11 @@ class kivi_app(App):
 				self.img_opns_btn.bind(on_press=self.OnImgOpnsButtonPressed)
 				self.note_mapping_btn.bind(on_press=self.OnNoteMapButtonPressed)
 
-				# self.refresh_btn.bind(on_press=self.OnRefreshBtnPresssed)
 
 		except Exception as e:
-			self.transfer_rate_label.text = str(e)
-			print(str(e))
+			# self.transfer_rate_label.text = str(e)
+			msg_change_ev.update_msg(str(e))
+			# print(str(e))
 
 	def build(self):
 
@@ -1034,12 +993,10 @@ class kivi_app(App):
 		size = 200*150*3
 		buf = [int(x * 255 / size) for x in range(size)]
 		# then, convert the array to a ubyte string
-		# buf = b''.join(map(chr, buf))
 		arr = array('B', buf)
 		# print(type(arr))
 		# then blit the buffer
 		image_texture.blit_buffer(arr, colorfmt='rgb', bufferfmt='ubyte')
-		# image_texture.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
 		# display image from the texture
 		self.im.texture = image_texture
 		self.im.allow_stretch = True
@@ -1053,14 +1010,12 @@ class kivi_app(App):
 
 		self.image_box = FloatLayout(pos_hint={'center_x': .1, 'center_y': .425},
 							 size_hint=(.35, .35)
-							 # size_hint=(None, None)
 							 )
 
-		self.title_label = Label(text="ILIAD Video Sonification Tools",
+		self.title_label = Label(text="ILIAD Video Sonification to MIDI",
 						  font_size=25,
 						  color=[63/255, 173/255, 168/255, 1],
 						  # color=[105, 106, 188, 1],
-						  # rgba(240,255,255 ,1 )
 						  pos_hint={'x': .4, 'y': .84},
 						  size_hint=(.2, .2),
 						  bold = True,
@@ -1077,14 +1032,12 @@ class kivi_app(App):
 							font_size=15,
 							pos_hint={'x': .12, 'y': .1},
 							size_hint=(.08, .075),
-							# disabled = True,
 							)
 
 		self.stop_button = Button(text='Stop',
 							font_size=15,
 							pos_hint={'x': .22, 'y': .1},
 							size_hint=(.08, .075),
-							# disabled = True,
 							)
 
 
@@ -1092,7 +1045,6 @@ class kivi_app(App):
 							font_size=15,
 							pos_hint={'x': .32, 'y': .1},
 							size_hint=(.08, .075),
-							# disabled = True,
 							)
 
 
@@ -1115,17 +1067,11 @@ class kivi_app(App):
 
 
 		self.portsdropdown = Spinner(# default value shown
-				# text=midiports[1],
 				text = "Select Port",
 				# available values
 				values=(),
-				# just for positioning in our example
-				# size_hint=(None, None),
-				# size=(100, 44),
-				# size_hint=(None, None),
 				pos_hint={'x': .635, 'y': .8},
 				size_hint=(.275, .07),
-				# on_text = self.OnPortChanged,
 				)
 
 		self.ports_label = Label(text="Port Number",
@@ -1137,10 +1083,6 @@ class kivi_app(App):
 				text='0',
 				# available values
 				values = tuple([str(i) for i in range(16)]),
-				# just for positioning in our example
-				# size_hint=(None, None),
-				# size=(100, 44),
-				# size_hint=(None, None),
 				pos_hint={'x': .65, 'y': .68},
 				size_hint=(.075, .07))
 
@@ -1153,10 +1095,6 @@ class kivi_app(App):
 				text='0',
 				# available values
 				values = tuple([str(i) for i in range(16)]),
-				# just for positioning in our example
-				# size_hint=(None, None),
-				# size=(100, 44),
-				# size_hint=(None, None),
 				pos_hint={'x': .82, 'y': .68},
 				size_hint=(.075, .07))
 
@@ -1179,10 +1117,6 @@ class kivi_app(App):
 				text=message_types[0],
 				# available values
 				values = message_types,
-				# just for positioning in our example
-				# size_hint=(None, None),
-				# size=(100, 44),
-				# size_hint=(None, None),
 				pos_hint={'x': .65, 'y': .56},
 				size_hint=(.25, .07))
 
@@ -1243,6 +1177,13 @@ class kivi_app(App):
 						  pos_hint={'x': .47, 'y': .12},
 						  size_hint=(.2, .05))
 
+		self.print_message_label = (
+						Label(text="",
+						  font_size=14,
+						  pos_hint={'x': .05, 'y': .01},
+						  size_hint=(0.9, .075))
+						)
+
 
 		FLOAT_LAYOUT.add_widget(self.title_label)
 		FLOAT_LAYOUT.add_widget(self.transfer_rate_label)
@@ -1274,10 +1215,13 @@ class kivi_app(App):
 		# FLOAT_LAYOUT.add_widget(self.osc_toggle)
 		FLOAT_LAYOUT.add_widget(self.control_selector)
 		FLOAT_LAYOUT.add_widget(self.control_label)
+		FLOAT_LAYOUT.add_widget(self.print_message_label)
 
 		self.run_button.disabled = self.pause_button.disabled = self.stop_button.disabled = True
 
 		self.refresh_btn.bind(on_press=self.OnRefreshBtnPressed)
+		msg_change_ev.bind(on_msg_change = self.OnPrintMessageChanged)
+
 
 		global rate_transfer, message_count, rtmidi, midiports, outputport, img_change_ev
 
@@ -1291,13 +1235,14 @@ class kivi_app(App):
 		# outputport = portmidi.open_output('loopMIDI Port 1', virtual=True) #gives windows error
 		try: 
 			midiports = mido.get_output_names()
-			print(midiports)
+			# print(midiports)
 			if len(midiports) == 0: #On Windows there is a single ['Microsoft GS Wavetable Synth 0'] available by default
-				self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
+				# self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
+				msg_change_ev.update_msg('No MIDI input devices are currently available.')
 			else:
 				# outputport = rtmidi.open_output(midiports[1]) #try 
 				self.transfer_rate_label.text = "Rate of transfer (delay) in secs: " + str(rate_transfer)
-				print(cv2.__version__)
+				# print(cv2.__version__)
 				# self.event = None
 				self.slider1.bind(value = self.OnSliderValueChange)
 				self.run_button.bind(on_press= self.OnRunButtonPressed)
@@ -1321,13 +1266,12 @@ class kivi_app(App):
 				self.note_mapping_btn.bind(on_press=self.OnNoteMapButtonPressed)
 
 		except Exception as e:
-			self.transfer_rate_label.text = str(e)
-			print(str(e))
+			msg_change_ev.update_msg(str(e))
+			# self.transfer_rate_label.text = str(e)
+			# print(str(e))
 		
 		return FLOAT_LAYOUT
 
 if __name__ == '__main__':
 
 	kivi_app().run()
-
-	# TODO: need to put the following stuff on a different thread
