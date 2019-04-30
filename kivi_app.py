@@ -57,7 +57,12 @@ color_space = 'RGB'
 crop_type = 'Top left'
 crop_x = 100
 crop_y = 100
+border_op = 'No border'
+border_color = 'Red'
+border_width = 10
+noise_op = 'No noise'
 
+modulo_or_range = True
 modulo_value = 128
 range_min = 0
 range_max = 127
@@ -158,11 +163,11 @@ def convert_color_space():
 	elif color_space == 'HSV':
 		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 	elif color_space == 'YCrCb':
-		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
+		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
 	elif color_space == 'XYZ':
 		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2XYZ)
 	elif color_space == 'HLS':
-		image_temp = cv2.cvtColor(image, cv2.HLS)
+		image_temp = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
 	else:
 		image_temp = image
 	
@@ -175,16 +180,17 @@ def perform_arithmetic_opn():
 
 	if arithmetic_op == 'Sum':
 		return np.sum(image)
-	elif arithmetic_op == 'Product':
-		return np.prod(image)
+	# elif arithmetic_op == 'Product':
+	# 	print(np.prod(image))
+	# 	return np.prod(image)
 	# elif arithmetic_op == 'Division':
 	# 	return np.prod(image)
-	# elif arithmetic_op == 'Difference':
-	# 	return np.prod(image)
+	elif arithmetic_op == 'Difference':
+		return np.sum(np.diff(image))
 	# elif arithmetic_op == 'Power':
 	# 	return np.prod(image)
-	# elif arithmetic_op == 'Gradient':
-	# 	return np.prod(image)
+	elif arithmetic_op == 'Gradient':
+		return np.sum(np.gradient(image))
 	# elif arithmetic_op == 'Exponential':
 	# 	return np.prod(image)
 	# elif arithmetic_op == 'Log':
@@ -193,10 +199,54 @@ def perform_arithmetic_opn():
 		return np.max(image)
 	elif arithmetic_op == 'Min':
 		return np.min(image)
-	elif arithmetic_op == 'Median':
+	elif arithmetic_op =='Median':
 		return np.median(image)
+	elif arithmetic_op =='Cumulative Sum':		
+		return np.sum(np.cumsum(image))
+	elif arithmetic_op =='Sign':		
+		return np.sum(np.sign(image))
 	# elif arithmetic_op == 'Mode':
 	# 	return np.max(image)
+
+def add_border():
+	global image, border_op, border_color, border_width
+	# 'No border', 'Constant', 'Replicate', 'Reflect', 'Wrap',
+	if border_op == 'No border':
+		return image
+	elif border_op == 'Constant':
+		print(border_color.upper())
+		BLACK = [0, 0, 0]
+		RED = [0,0,255]
+		GREEN = [0,255,0]
+		BLUE = [255,0,0]
+		WHITE = [255,255,255]
+		if border_color == 'red':
+			image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_CONSTANT,value=RED)
+		elif border_color == 'black':
+			image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_CONSTANT,value=BLACK)
+		elif border_color == 'blue':
+			image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_CONSTANT,value=BLUE)
+		elif border_color == 'green':
+			image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_CONSTANT,value=GREEN)
+		elif border_color == 'white':
+			image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_CONSTANT,value=WHITE)
+	elif border_op == 'Replicate':
+		image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_REPLICATE)
+	elif border_op == 'Reflect':
+		image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_REFLECT)
+	elif border_op == 'Wrap':
+		image_temp = cv2.copyMakeBorder(image,border_width,border_width,border_width,border_width,cv2.BORDER_WRAP)
+	return image_temp
+
+def add_noise():
+	global image, noise_op
+	if noise_op == 'No noise':
+		return image
+	if noise_op == 'Gaussian':
+		m = (0,0,0) 
+		s = (50,50,50)
+		image_temp = image + cv2.randn(image,m,s);
+	return image_temp
 
 def crop_image():
 	global image, crop_type, crop_x, crop_y
@@ -207,20 +257,28 @@ def crop_image():
 		return image
 	if crop_type == 'Top left':
 		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
-	if crop_type == 'Top right':
-		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
-	if crop_type == 'Bottom left':
-		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
-	if crop_type == 'Bottom right':
-		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
-	if crop_type == 'Center':
-		image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
+	elif crop_type == 'Top right':
+		image_temp = image[0:int((crop_x/100)*image.shape[0]),int(((100-crop_y)/100)*image.shape[1]):image.shape[1]]
+	elif crop_type == 'Bottom left':
+		image_temp = image[int(((100-crop_x)/100)*image.shape[0]):image.shape[0],0:int((crop_y/100)*image.shape[1])]
+	elif crop_type == 'Bottom right':
+		image_temp = image[int(((100-crop_x)/100)*image.shape[0]):image.shape[0],int(((100-crop_y)/100)*image.shape[1]):image.shape[1]]
+	# elif crop_type == 'Center':
+	# 	image_temp = image[0:int((crop_x/100)*image.shape[0]),0:int((crop_y/100)*image.shape[1])]
 	return image_temp
 
-def build_note(): # does not value mapping operations
-	pass
-
-
+def build_note(value): # does note value mapping operations
+	global modulo_or_range, modulo_value, range_min, range_max
+	if modulo_or_range == True:
+		return value%modulo_value
+	elif modulo_or_range == False:
+		# couldn't think of any other way of clipping for the time being
+		if value%modulo_value<range_min:
+			return range_min
+		elif value%modulo_value>range_max:
+			return range_max
+		else:
+			return value%modulo_value
 def build_message(value):
 	global channel, message_type, control
 
@@ -270,26 +328,26 @@ def send_message_midi():
 		
 		image = crop_image()
 
+		image = add_noise()
+
+		image = add_border()
+
 		image = convert_color_space()
 
 		print(image.shape)
 
 		img_change_ev.update_image(image)
 
-		# note = image_operation()
-		note = perform_arithmetic_opn()
+		value = perform_arithmetic_opn()
 
-		# print(note)
-		# print(type(note))
 		message_count+=1
 
-		print(note)
-		note = int(note)
-		note=note%128
+		print(value)
+		value = int(value)
+		note = build_note(value)
 		
-		# msg = mido.Message('note_on', note=int(note))
 		msg = build_message(note)
-		# msg = mido.Message('control_change', channel=channel, control=16, value=note)
+		
 		outputport.send(msg)
 		print('Sent message ', msg, " : " , message_count)
 	except cv2.error as e:
@@ -541,23 +599,25 @@ class kivi_app(App):
 			# spacing=5
 			)
 			self.imgopnspopup = Popup(
-				title='Select image operations', content=content, size_hint=(0.9, 0.9),
+				title='Select image operations. These are applied to the pixels of the images.', content=content, size_hint=(0.9, 0.9),
 				width=(0.9,0.9))
 
 			self.imgopnspopup.arithmetic_opns = Spinner(# default value shown
 					text = 'Sum',
 					# available values
 					values=('Sum',
-						'Product',
+						# 'Product',
 						# 'Division',
-						# 'Difference',
+						'Difference',
 						# 'Power',
-						# 'Gradient',
+						'Gradient',
 						# 'Exponential',
 						# 'Log',
 						'Max',
 						'Min',
 						'Median',
+						'Cumulative Sum',
+						'Sign',
 						# 'Mode',
 						),
 					pos_hint={'x': .53, 'y': .8},
@@ -587,7 +647,9 @@ class kivi_app(App):
 			self.imgopnspopup.crop_opns = Spinner(# default value shown
 					text = 'Top left',
 					# available values
-					values=('Top left','Top right','Bottom left', 'Bottom right','Center'),
+					values=('Top left','Top right','Bottom left', 'Bottom right',
+						# 'Center',
+						),
 					pos_hint={'x': .53, 'y': .6},
 					size_hint=(.15, .075),
 					# on_text = self.OnPortChanged,
@@ -611,18 +673,53 @@ class kivi_app(App):
 							  size_hint=(.2, .05))
 
 			self.imgopnspopup.border_opns = Spinner(# default value shown
-					text = "Select border parameters",
+					text = 'No border',
 					# available values
-					values=(),
+					values=('No border', 'Constant', 'Replicate', 'Reflect', 'Wrap'),
 					pos_hint={'x': .53, 'y': .5},
+					size_hint=(.15, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.imgopnspopup.border_color = Spinner(# default value shown
+					text = 'red',
+					# available values
+					values=('red', 'blue', 'green','white','black'),
+					pos_hint={'x': .69, 'y': .5},
+					size_hint=(.1, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.imgopnspopup.border_width = Spinner(# default value shown
+					text = '50',
+					# available values
+					values=tuple([str(i) for i in range(10,101)]),
+					pos_hint={'x': .8, 'y': .5},
+					size_hint=(.1, .075),
+					# on_text = self.OnPortChanged,
+					)
+
+			self.imgopnspopup.border_opns_label = Label(text="Border parameters, color, width",
+							  font_size=14,
+							  pos_hint={'x': .2, 'y': .51},
+							  size_hint=(.1, .05))
+
+			self.imgopnspopup.noise_opns = Spinner(# default value shown
+					text = 'No noise',
+					# available values
+					values=('No noise', 'Gaussian', 
+						# 'Salt and pepper', 
+						# 'Speckle',
+						),
+					pos_hint={'x': .53, 'y': .4},
 					size_hint=(.3, .075),
 					# on_text = self.OnPortChanged,
 					)
 
-			self.imgopnspopup.border_opns_label = Label(text="Add border",
+			self.imgopnspopup.noise_opns_label = Label(text="Add noise",
 							  font_size=14,
-							  pos_hint={'x': .2, 'y': .51},
-							  size_hint=(.2, .05))
+							  pos_hint={'x': .2, 'y': .41},
+							  size_hint=(.1, .05))
 		
 			# 2 buttons are created for accept or cancel the current value
 			# btnlayout = BoxLayout(size_hint_y=None, height='40dp', spacing='20dp')
@@ -646,16 +743,25 @@ class kivi_app(App):
 			content.add_widget(self.imgopnspopup.crop_y)
 			content.add_widget(self.imgopnspopup.border_opns_label)
 			content.add_widget(self.imgopnspopup.border_opns)
-	
+			content.add_widget(self.imgopnspopup.border_color)
+			content.add_widget(self.imgopnspopup.border_width)
+			content.add_widget(self.imgopnspopup.noise_opns)
+			content.add_widget(self.imgopnspopup.noise_opns_label)
+
 		else:
-			print('hello')
+			# print('hello')
 			self.imgopnspopup.old_state = self.imgopnspopup
 
 			self.imgopnspopup.old_state.arithmetic_opns_text = copy.deepcopy(self.imgopnspopup.arithmetic_opns.text)
 			self.imgopnspopup.old_state.color_opns_text = copy.deepcopy(self.imgopnspopup.color_opns.text)
 			self.imgopnspopup.old_state.crop_opns_text = copy.deepcopy(self.imgopnspopup.crop_opns.text)
 			self.imgopnspopup.old_state.crop_x_text = copy.deepcopy(self.imgopnspopup.crop_x.text)
-			self.imgopnspopup.old_state.crop_y_text = copy.deepcopy(self.imgopnspopup.crop_x.text)
+			self.imgopnspopup.old_state.crop_y_text = copy.deepcopy(self.imgopnspopup.crop_y.text)
+			self.imgopnspopup.old_state.border_opns_text = copy.deepcopy(self.imgopnspopup.border_opns.text)
+			self.imgopnspopup.old_state.border_color_text = copy.deepcopy(self.imgopnspopup.border_color.text)
+			self.imgopnspopup.old_state.border_width_text = copy.deepcopy(self.imgopnspopup.border_width.text)
+			self.imgopnspopup.old_state.noise_opns_text = copy.deepcopy(self.imgopnspopup.noise_opns.text)
+			
 
 			# print(self.imgopnspopup.old_state.arithmetic_opns_text)
 			# print(self.imgopnspopup.old_state.color_opns_text)
@@ -665,7 +771,7 @@ class kivi_app(App):
 		
 
 	def OnImgOpnsSaved(self, instance):
-		global arithmetic_op, color_space, crop_type, crop_x, crop_y
+		global arithmetic_op, color_space, crop_type, crop_x, crop_y, border_op, border_color, border_width, noise_op
 
 		arithmetic_op = self.imgopnspopup.arithmetic_opns.text
 		# print(arithmetic_op)
@@ -676,6 +782,12 @@ class kivi_app(App):
 		crop_type = self.imgopnspopup.crop_opns.text
 		crop_x = int(self.imgopnspopup.crop_x.text)
 		crop_y = int(self.imgopnspopup.crop_y.text)
+
+		border_op = self.imgopnspopup.border_opns.text
+		border_color = self.imgopnspopup.border_color.text
+		border_width = int(self.imgopnspopup.border_width.text)
+
+		noise_op = self.imgopnspopup.noise_opns.text
 
 		self.imgopnspopup.dismiss()
 
@@ -691,7 +803,13 @@ class kivi_app(App):
 		# print(self.imgopnspopup.color_opns.text)
 		self.imgopnspopup.crop_opns.text = self.imgopnspopup.old_state.crop_opns_text
 		self.imgopnspopup.crop_x.text = self.imgopnspopup.old_state.crop_x_text
-		self.imgopnspopup.crop_x.text = self.imgopnspopup.old_state.crop_y_text
+		self.imgopnspopup.crop_y.text = self.imgopnspopup.old_state.crop_y_text
+
+		self.imgopnspopup.border_opns.text = self.imgopnspopup.old_state.border_opns_text
+		self.imgopnspopup.border_color.text = self.imgopnspopup.old_state.border_color_text
+		self.imgopnspopup.border_width.text = self.imgopnspopup.old_state.border_width_text
+
+		self.imgopnspopup.noise_opns.text = self.imgopnspopup.old_state.noise_opns_text
 
 		self.imgopnspopup.dismiss()
 
@@ -807,18 +925,40 @@ class kivi_app(App):
 	def OnNotemappopupOpnsChanged(self, spinner, text):
 		print('hello')
 		if self.notemappopup.opns.text == 'Modulo':
-			self.notemappopup.modulo_opns.disabled = False
+			# self.notemappopup.modulo_opns.disabled = False
 			self.notemappopup.range_min_opns.disabled = True
 			self.notemappopup.range_max_opns.disabled = True
 		elif self.notemappopup.opns.text == 'Range fitting':
-			self.notemappopup.modulo_opns.disabled = True
+			# self.notemappopup.modulo_opns.disabled = True
 			self.notemappopup.range_min_opns.disabled = False
 			self.notemappopup.range_max_opns.disabled = False
 
 	def OnNoteMapOpnsSaved(self, instance):
 		# pass
+		global modulo_or_range, modulo_value, range_min, range_max
 
-		self.notemappopup.dismiss()
+		if self.notemappopup.opns.text == 'Modulo':
+			modulo_or_range = True
+			modulo_value = int(self.notemappopup.modulo_opns.text)
+			self.notemappopup.dismiss()
+		elif self.notemappopup.opns.text == 'Range fitting':
+			if int(self.notemappopup.range_min_opns.text) >= int(self.notemappopup.range_max_opns.text):
+				content = BoxLayout(orientation='vertical', spacing=5)
+				popup = Popup(
+				title='The range minimum should be a smaller value!', content=content, size_hint=(0.2, 0.2),
+				width=(0.2,0.2))
+				btn = Button(text='Ok')
+				btn.bind(on_release=popup.dismiss)
+				content.add_widget(btn)
+				popup.open()
+			else:
+				modulo_or_range = False
+				modulo_value = int(self.notemappopup.modulo_opns.text)
+				range_min = int(self.notemappopup.range_min_opns.text)
+				range_max = int(self.notemappopup.range_max_opns.text)
+				self.notemappopup.dismiss()
+
+		
 		
 	def OnNoteMapOpnsCanceled(self, instance):
 		# assign each option to older state
@@ -849,7 +989,7 @@ class kivi_app(App):
 		try: 
 			midiports = mido.get_output_names()
 			print(midiports)
-			if len(midiports) == 1: #On Windows there is a single ['Microsoft GS Wavetable Synth 0'] available by default
+			if len(midiports) == 0: #On Windows there is a single ['Microsoft GS Wavetable Synth 0'] available by default
 				self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
 			else:
 				# outputport = rtmidi.open_output(midiports[1]) #try 
@@ -983,8 +1123,8 @@ class kivi_app(App):
 				# size_hint=(None, None),
 				# size=(100, 44),
 				# size_hint=(None, None),
-				pos_hint={'x': .65, 'y': .8},
-				size_hint=(.25, .07),
+				pos_hint={'x': .635, 'y': .8},
+				size_hint=(.275, .07),
 				# on_text = self.OnPortChanged,
 				)
 
@@ -1103,6 +1243,7 @@ class kivi_app(App):
 						  pos_hint={'x': .47, 'y': .12},
 						  size_hint=(.2, .05))
 
+
 		FLOAT_LAYOUT.add_widget(self.title_label)
 		FLOAT_LAYOUT.add_widget(self.transfer_rate_label)
 		FLOAT_LAYOUT.add_widget(self.image_box)
@@ -1151,7 +1292,7 @@ class kivi_app(App):
 		try: 
 			midiports = mido.get_output_names()
 			print(midiports)
-			if len(midiports) == 1: #On Windows there is a single ['Microsoft GS Wavetable Synth 0'] available by default
+			if len(midiports) == 0: #On Windows there is a single ['Microsoft GS Wavetable Synth 0'] available by default
 				self.transfer_rate_label.text = 'No MIDI input devices are currently available.'
 			else:
 				# outputport = rtmidi.open_output(midiports[1]) #try 
